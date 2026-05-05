@@ -60,6 +60,21 @@ declare module 'vue-router/auto-routes' {
       '/proposal',
       Record<never, never>,
       Record<never, never>,
+      | '/proposal/'
+      | '/proposal/[id]'
+    >,
+    '/proposal/': RouteRecordInfo<
+      '/proposal/',
+      '/proposal',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/proposal/[id]': RouteRecordInfo<
+      '/proposal/[id]',
+      '/proposal/:id',
+      { id: ParamValue<true> },
+      { id: ParamValue<false> },
       | never
     >,
     '/settings': RouteRecordInfo<
@@ -123,6 +138,20 @@ declare module 'vue-router/auto-routes' {
     'src/pages/proposal.vue': {
       routes:
         | '/proposal'
+        | '/proposal/'
+        | '/proposal/[id]'
+      views:
+        | 'default'
+    }
+    'src/pages/proposal/index.vue': {
+      routes:
+        | '/proposal/'
+      views:
+        | never
+    }
+    'src/pages/proposal/[id].vue': {
+      routes:
+        | '/proposal/[id]'
       views:
         | never
     }

@@ -1,6 +1,7 @@
 import { ElectronAPI } from "@electron-toolkit/preload";
 import type { chatApi } from "./api/chat";
 import type { projectApi } from "./api/project";
+import type { proposalApi } from "./api/proposal";
 import type { integrationApi } from "./api/integration";
 import type { acpAgentsApi } from "./api/acp-agents";
 import type { settingsApi } from "./api/settings";
@@ -10,6 +11,7 @@ import type { netApi } from "./api/net";
 export interface AppApi {
   chat: typeof chatApi;
   project: typeof projectApi;
+  proposal: typeof proposalApi;
   integration: typeof integrationApi;
   acpAgents: typeof acpAgentsApi;
   settings: typeof settingsApi;

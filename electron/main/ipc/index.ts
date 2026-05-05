@@ -1,5 +1,6 @@
 import { registerChatHandlers } from "./chat";
 import { registerProjectHandlers } from "./project";
+import { registerProposalHandlers } from "./proposal";
 import { registerIntegrationHandlers } from "./integration";
 import { registerAcpAgentHandlers } from "./acp-agents";
 import { registerSettingsHandlers } from "./settings";
@@ -9,6 +10,7 @@ import { registerNetHandlers } from "./net";
 export function registerAllHandlers(): void {
   registerChatHandlers();
   registerProjectHandlers();
+  registerProposalHandlers();
   registerIntegrationHandlers();
   registerAcpAgentHandlers();
   registerSettingsHandlers();

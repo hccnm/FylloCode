@@ -26,6 +26,11 @@ export const ProjectChannels = {
   openFolder: "project:openFolder",
 } as const;
 
+export const ProposalChannels = {
+  list: "proposal:list",
+  readFile: "proposal:readFile",
+} as const;
+
 export const NetChannels = {
   fetch: "net:fetch",
   fetchImage: "net:fetchImage",

@@ -2,6 +2,7 @@ import { contextBridge } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import { chatApi } from "./api/chat";
 import { projectApi } from "./api/project";
+import { proposalApi } from "./api/proposal";
 import { integrationApi } from "./api/integration";
 import { acpAgentsApi } from "./api/acp-agents";
 import { settingsApi } from "./api/settings";
@@ -11,6 +12,7 @@ import { netApi } from "./api/net";
 const api = {
   chat: chatApi,
   project: projectApi,
+  proposal: proposalApi,
   integration: integrationApi,
   acpAgents: acpAgentsApi,
   settings: settingsApi,
