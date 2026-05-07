@@ -6,7 +6,7 @@ import type { WorkflowStage, WorkflowTemplate } from "@shared/types/workflow";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { loadProject } from "@main/infra/storage/project-store";
 import { loadApplyRunMeta, saveApplyRunMeta } from "@main/infra/storage/apply-run-store";
-import { resolveChangeDir } from "@main/domain/proposal/openspec-reader";
+import { resolveApplyRunChangeId, resolveChangeDir } from "@main/domain/proposal/openspec-reader";
 import { loadAllWorkflowTemplates } from "@main/services/workflow/workflow-service";
 import { newRunId } from "@main/infra/ids";
 import { ipcError } from "@main/ipc/_kit/errors";
@@ -26,6 +26,8 @@ export async function findWorkflowTemplate(
   const templates = await loadAllWorkflowTemplates(projectId);
   return templates.find((template) => template.id === workflowId) ?? null;
 }
+
+export { resolveApplyRunChangeId };
 
 export async function updateChangeStatus(
   projectPath: string,

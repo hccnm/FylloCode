@@ -28,6 +28,7 @@ import {
   buildArchiveStage,
   createApplyRun,
   getCompletedApplyStageIndex,
+  resolveApplyRunChangeId,
   resolveProjectPath,
   updateRunMetaIfCurrent,
 } from "@main/services/proposal/apply-run-service";
@@ -281,7 +282,8 @@ export function registerProposalApplyHandlers(): void {
     wrapHandler(async () => {
       const form = validate(loadRunInputSchema, input);
       const projectPath = await resolveProjectPath(form.projectId);
-      return loadApplyRunMeta(projectPath, form.changeId);
+      const applyRunChangeId = await resolveApplyRunChangeId(projectPath, form.changeId);
+      return loadApplyRunMeta(projectPath, applyRunChangeId);
     })
   );
 
@@ -289,7 +291,8 @@ export function registerProposalApplyHandlers(): void {
     wrapHandler(async () => {
       const form = validate(loadRunMessagesInputSchema, input);
       const projectPath = await resolveProjectPath(form.projectId);
-      return loadApplyRunMessages(projectPath, form.changeId, form.stageIndex);
+      const applyRunChangeId = await resolveApplyRunChangeId(projectPath, form.changeId);
+      return loadApplyRunMessages(projectPath, applyRunChangeId, form.stageIndex);
     })
   );
 }

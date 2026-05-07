@@ -25,6 +25,7 @@ const props = defineProps<{
 defineEmits<{
   back: [];
   "open-side-panel": [];
+  "view-run-history": [];
   archive: [];
 }>();
 
@@ -43,6 +44,9 @@ const statusConfig: Record<
 };
 
 const isApplying = computed(() => props.proposal?.status === "applying" && Boolean(props.runMeta));
+const canViewRunHistory = computed(
+  () => props.proposal?.status === "archived" || props.proposal?.status === "applying"
+);
 
 function getStageIndex(): number {
   if (!props.runMeta || props.runMeta.stages.length === 0) {
@@ -104,6 +108,15 @@ function getStageCount(): number {
               @click="$emit('archive')"
             >
               归档
+            </UButton>
+            <UButton
+              v-else-if="canViewRunHistory"
+              size="xs"
+              color="neutral"
+              icon="i-lucide-history"
+              @click="$emit('view-run-history')"
+            >
+              查看运行历史
             </UButton>
           </div>
         </div>

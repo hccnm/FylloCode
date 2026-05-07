@@ -22,6 +22,14 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
     activeTextPartIdx = -1;
   }
 
+  function clearRunState(): void {
+    runMeta.value = null;
+    messages.value = [];
+    isStreaming.value = false;
+    cancelFn.value = null;
+    resetActiveMessage();
+  }
+
   function ensureAssistantMessage(): UIMessage<MessageMeta> {
     if (activeAssistantId) {
       const existing = messages.value.find((message) => message.id === activeAssistantId);
@@ -226,24 +234,18 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
   }
 
   async function resumeRun(projectId: string, changeId: string): Promise<void> {
+    clearRunState();
+
     const result = await proposalApi.loadRun({ projectId, changeId });
     if (!result.ok) {
       throw new Error(result.error.message);
     }
 
     if (!result.data) {
-      runMeta.value = null;
-      messages.value = [];
-      isStreaming.value = false;
-      cancelFn.value = null;
-      resetActiveMessage();
       return;
     }
 
     runMeta.value = result.data;
-    isStreaming.value = false;
-    cancelFn.value = null;
-    resetActiveMessage();
 
     const maxStageIndex = Math.max(result.data.stages.length - 1, 0);
     const stageIndex =

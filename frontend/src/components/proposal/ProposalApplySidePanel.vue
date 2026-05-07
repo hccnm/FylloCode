@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import ChatComark from "@renderer/components/chat/ChatComark";
 import type { MessageMeta } from "@shared/types/chat";
 import type { ApplyRunMeta } from "@shared/types/proposal";
@@ -14,6 +15,9 @@ defineEmits<{
   close: [];
 }>();
 
+const panelTitle = computed(() => props.runMeta?.workflowId ?? "运行历史");
+const showEmptyState = computed(() => !props.isStreaming && props.messages.length === 0);
+
 function getStageIndex(): number {
   if (!props.runMeta || props.runMeta.stages.length === 0) {
     return 0;
@@ -28,17 +32,15 @@ function getStageCount(): number {
 </script>
 
 <template>
-  <div
-    v-if="runMeta"
-    class="flex flex-col w-96 shrink-0 border-l border-default bg-default overflow-hidden"
-  >
+  <div class="flex flex-col w-96 shrink-0 border-l border-default bg-default overflow-hidden">
     <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-default">
       <div class="flex items-center gap-2 min-w-0">
-        <span class="w-1.5 h-1.5 rounded-full bg-warning animate-pulse shrink-0" />
-        <span class="text-sm font-medium text-highlighted truncate">{{ runMeta.workflowId }}</span>
+        <span v-if="runMeta" class="w-1.5 h-1.5 rounded-full bg-warning animate-pulse shrink-0" />
+        <UIcon v-else name="i-lucide-history" class="w-4 h-4 text-muted shrink-0" />
+        <span class="text-sm font-medium text-highlighted truncate">{{ panelTitle }}</span>
       </div>
       <div class="flex items-center gap-1 shrink-0">
-        <span class="text-xs text-muted">
+        <span v-if="runMeta" class="text-xs text-muted">
           {{ getStageCount() > 0 ? getStageIndex() + 1 : 0 }}/{{ getStageCount() }}
         </span>
         <UButton
@@ -51,7 +53,7 @@ function getStageCount(): number {
       </div>
     </div>
 
-    <div class="shrink-0 px-4 py-2 border-b border-default bg-elevated/50">
+    <div v-if="runMeta" class="shrink-0 px-4 py-2 border-b border-default bg-elevated/50">
       <div class="flex items-center gap-1.5">
         <template v-for="(stage, index) in runMeta.stages" :key="stage.id">
           <div
@@ -80,43 +82,62 @@ function getStageCount(): number {
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+    <div class="flex-1 overflow-y-auto px-4 py-3">
       <div
-        v-for="message in messages"
-        :key="message.id"
-        class="space-y-2 rounded-lg border border-default bg-elevated/30 px-3 py-3"
+        v-if="showEmptyState"
+        class="flex h-full min-h-52 items-center justify-center rounded-lg border border-dashed border-default bg-elevated/20 px-6"
       >
-        <div v-for="(part, index) in message.parts" :key="index">
-          <div v-if="part.type === 'text'" class="prose prose-sm dark:prose-invert max-w-none">
-            <ChatComark :markdown="part.text" />
+        <div class="flex max-w-64 flex-col items-center text-center">
+          <div class="mb-3 rounded-full bg-elevated p-3 text-muted">
+            <UIcon name="i-lucide-history" class="w-5 h-5" />
           </div>
+          <p class="text-sm font-medium text-highlighted">暂无运行记录</p>
+          <p class="mt-1 text-xs leading-5 text-muted">这个 proposal 还没有可查看的历史日志。</p>
+        </div>
+      </div>
 
-          <div
-            v-else-if="part.type === 'dynamic-tool'"
-            class="flex items-start gap-2 rounded-md border border-default bg-default px-3 py-2 text-xs"
-          >
-            <UIcon
-              v-if="part.state === 'input-available'"
-              name="i-lucide-loader-2"
-              class="w-3.5 h-3.5 animate-spin text-warning mt-0.5 shrink-0"
-            />
-            <UIcon v-else name="i-lucide-check" class="w-3.5 h-3.5 text-success mt-0.5 shrink-0" />
-            <div class="min-w-0 flex-1">
-              <div class="font-medium text-highlighted">
-                {{ part.toolName }}
-              </div>
-              <div v-if="part.state === 'input-available'" class="text-muted">调用中</div>
-              <div v-else class="mt-1 text-muted whitespace-pre-wrap">
-                {{ part.title ?? part.toolName }}
+      <div v-else class="space-y-3">
+        <div
+          v-for="message in messages"
+          :key="message.id"
+          class="space-y-2 rounded-lg border border-default bg-elevated/30 px-3 py-3"
+        >
+          <div v-for="(part, index) in message.parts" :key="index">
+            <div v-if="part.type === 'text'" class="prose prose-sm dark:prose-invert max-w-none">
+              <ChatComark :markdown="part.text" />
+            </div>
+
+            <div
+              v-else-if="part.type === 'dynamic-tool'"
+              class="flex items-start gap-2 rounded-md border border-default bg-default px-3 py-2 text-xs"
+            >
+              <UIcon
+                v-if="part.state === 'input-available'"
+                name="i-lucide-loader-2"
+                class="w-3.5 h-3.5 animate-spin text-warning mt-0.5 shrink-0"
+              />
+              <UIcon
+                v-else
+                name="i-lucide-check"
+                class="w-3.5 h-3.5 text-success mt-0.5 shrink-0"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="font-medium text-highlighted">
+                  {{ part.toolName }}
+                </div>
+                <div v-if="part.state === 'input-available'" class="text-muted">调用中</div>
+                <div v-else class="mt-1 text-muted whitespace-pre-wrap">
+                  {{ part.title ?? part.toolName }}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div v-if="isStreaming" class="flex items-center gap-2 text-xs text-muted">
-        <UIcon name="i-lucide-loader-2" class="w-3.5 h-3.5 animate-spin" />
-        <span>正在执行...</span>
+        <div v-if="isStreaming" class="flex items-center gap-2 text-xs text-muted">
+          <UIcon name="i-lucide-loader-2" class="w-3.5 h-3.5 animate-spin" />
+          <span>正在执行...</span>
+        </div>
       </div>
     </div>
   </div>

@@ -164,6 +164,22 @@ async function archiveProposal(): Promise<void> {
   }
 }
 
+async function viewRunHistory(): Promise<void> {
+  sidePanelOpen.value = true;
+
+  const projectId = projectStore.currentProject?.id;
+  const changeIdSnapshot = changeId.value;
+  if (!projectId || !changeIdSnapshot) {
+    return;
+  }
+
+  try {
+    await proposalRunStore.resumeRun(projectId, changeIdSnapshot);
+  } catch (error: unknown) {
+    console.error("Failed to load proposal run history:", error);
+  }
+}
+
 function backToList(): void {
   void router.push("/proposal");
 }
@@ -199,6 +215,7 @@ onMounted(() => {
         :can-archive="canArchive"
         @back="backToList"
         @open-side-panel="sidePanelOpen = true"
+        @view-run-history="viewRunHistory"
         @archive="archiveProposal"
       />
 
@@ -211,7 +228,7 @@ onMounted(() => {
     </div>
 
     <ProposalApplySidePanel
-      v-if="sidePanelOpen && proposalRunStore.runMeta"
+      v-if="sidePanelOpen"
       :run-meta="proposalRunStore.runMeta"
       :messages="proposalRunStore.messages"
       :is-streaming="proposalRunStore.isStreaming"
