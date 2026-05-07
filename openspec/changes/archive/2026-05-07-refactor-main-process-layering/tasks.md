@@ -90,4 +90,4 @@
 - [x] 6.4 更新 `CLAUDE.md` 的"文档归类"链接表，新增 `MainProcess` 一行
 - [x] 6.5 最终运行 `openspec validate refactor-main-process-layering --strict` 通过
 - [x] 6.6 最终运行 `pnpm typecheck && pnpm lint && pnpm build && pnpm test` 全绿
-- [ ] 6.7 最终手工冒烟回归：项目列表 → 进入项目 → 新建 chat session → 发消息走流式 → 打开 proposal → apply 一个 stage → archive → 切换其他 project → 连接/断开 yunxiao → Cmd+Q 优雅退出；对比 `data/logs/main.log` 与 Phase 0 baseline 无回归
+- [x] 6.7 最终手工冒烟回归：项目列表 → 进入项目 → 新建 chat session → 发消息走流式 → 打开 proposal → apply 一个 stage → archive → 切换其他 project → 连接/断开 yunxiao → Cmd+Q 优雅退出；对比 `data/logs/main.log` 与 Phase 0 baseline 无回归
