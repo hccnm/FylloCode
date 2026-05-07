@@ -4,7 +4,7 @@ import { net } from "electron";
 import type { AcpRegistry, AcpRegistryCache } from "@shared/types/acp-agent";
 import { getDataSubPath } from "@main/infra/paths";
 import logger from "@main/infra/logger";
-import { invalidateChangedIcons } from "./icon-cache";
+import { invalidateChangedIcons } from "./acp-icon-cache";
 
 const REGISTRY_URL = "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json";
 const REGISTRY_TTL_MS = 24 * 60 * 60 * 1000;

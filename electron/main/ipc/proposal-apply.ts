@@ -15,7 +15,7 @@ import {
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import { AcpSession } from "@main/services/chat/acp-session";
 import { sessionRegistry } from "@main/services/chat/session-registry";
-import { MessageAssembler } from "@main/domain/chat/message-assembler";
+import { MessageAssembler } from "@main/services/chat/message-assembler";
 import { loadSessionMeta } from "@main/infra/storage/session-store";
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
 import {

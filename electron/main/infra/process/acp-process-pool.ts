@@ -4,12 +4,12 @@ import { BrowserWindow } from "electron";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
 import type { RequestPermissionRequest, SessionNotification } from "@agentclientprotocol/sdk";
 import { readInstalledRecords } from "@main/domain/acp/detector";
-import { getRegistry } from "@main/services/acp-agent/registry-cache";
+import { getRegistry } from "@main/infra/storage/acp-registry-cache";
 import type { AcpAgentEntry } from "@shared/types/acp-agent";
 import { AcpAgentChannels } from "@shared/types/channels";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
+import { ipcError } from "@shared/errors/ipc-error";
 import { registerDisposable } from "@main/bootstrap/lifecycle";
-import { ipcError } from "@main/ipc/_kit/errors";
 import logger from "@main/infra/logger";
 
 type SessionUpdateHandler = (notification: SessionNotification) => void;

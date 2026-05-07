@@ -3,9 +3,9 @@ import { AcpAgentChannels } from "@shared/types/channels";
 import type { AcpInstallProgress, AcpRegistry } from "@shared/types/acp-agent";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { detectAgentStatuses } from "@main/domain/acp/detector";
-import { getAgentIcons } from "@main/services/acp-agent/icon-cache";
+import { getAgentIcons } from "@main/infra/storage/acp-icon-cache";
 import { installAgent } from "@main/services/acp-agent/installer";
-import { getRegistry, refreshRegistry } from "@main/services/acp-agent/registry-cache";
+import { getRegistry, refreshRegistry } from "@main/infra/storage/acp-registry-cache";
 import { ipcError } from "@main/ipc/_kit/errors";
 
 export function broadcastRegistryUpdated(registry: AcpRegistry): void {

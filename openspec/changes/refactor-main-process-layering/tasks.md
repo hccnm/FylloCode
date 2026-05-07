@@ -65,22 +65,22 @@
 
 ## 5. Phase 4 — 测试与 ESLint 约束
 
-- [ ] 5.1 安装测试依赖若缺失（`vitest` 已有），确认 `vitest.config.mts` 能覆盖 `electron/main` 下的 `*.spec.ts`
-- [ ] 5.2 为 `domain/chat/message-assembler.ts` 补单测（text_delta 累积、tool_call_start/update 状态迁移、flush 语义）
-- [ ] 5.3 为 `domain/workflow/yaml-parser.ts` 补单测（stage type alias、缺失字段默认值、异常 YAML）
-- [ ] 5.4 为 `domain/proposal/openspec-reader.ts` 补单测（Why 摘要、任务计数、archive 目录合并）
+- [x] 5.1 安装测试依赖若缺失（`vitest` 已有），确认 `vitest.config.mts` 能覆盖 `electron/main` 下的 `*.spec.ts`
+- [x] 5.2 为 `domain/chat/message-assembler.ts` 补单测（text_delta 累积、tool_call_start/update 状态迁移、flush 语义）
+- [x] 5.3 为 `domain/workflow/yaml-parser.ts` 补单测（stage type alias、缺失字段默认值、异常 YAML）
+- [x] 5.4 为 `domain/proposal/openspec-reader.ts` 补单测（Why 摘要、任务计数、archive 目录合并）
 - [ ] 5.5 为 `domain/acp/detector.ts` 中的纯函数（`compareVersions` / `resolveBinaryDistribution` / `parseVersionFromText`）补单测
 - [ ] 5.6 为 `infra/storage/project-paths.ts` 补单测（encode 稳定、各子目录函数）
-- [ ] 5.7 为 `infra/ids.ts` 补单测（前缀格式、单调性）
-- [ ] 5.8 为 `services/chat/session-event-mapper.ts` 补单测（每种 SessionEvent 到 MessageChunkData 的映射完整性）
-- [ ] 5.9 为 `services/chat/session-registry.ts` 补单测（注册/取消/按 owner cancel/cancelAll 覆盖不存在 key）
+- [x] 5.7 为 `infra/ids.ts` 补单测（前缀格式、单调性）
+- [x] 5.8 为 `services/chat/session-event-mapper.ts` 补单测（每种 SessionEvent 到 MessageChunkData 的映射完整性）
+- [x] 5.9 为 `services/chat/session-registry.ts` 补单测（注册/取消/按 owner cancel/cancelAll 覆盖不存在 key）
 - [ ] 5.10 为 `ipc/_kit/stream-channel.ts` 补单测：ready 握手、未 ready 时不启动业务、业务 throw 归一化为 error、port 关闭时 cancel 被调用、done 正常发送、重复 done/error 幂等
-- [ ] 5.11 为 `ipc/_kit/errors.ts` 补单测：code 必须属于 `IpcErrorCodes`
-- [ ] 5.12 `eslint.config.mjs` 新增 `no-restricted-imports` 约束：
+- [x] 5.11 为 `ipc/_kit/errors.ts` 补单测：code 必须属于 `IpcErrorCodes`
+- [x] 5.12 `eslint.config.mjs` 新增 `no-restricted-imports` 约束：
   - `domain/**` 禁止 `electron` / `@electron-toolkit/*` / `@main/services/*` / `@main/infra/*` / `@main/ipc/*`
   - `ipc/**`（除 `_kit/**`）禁止 `node:fs` / `fs` / `child_process` / `node:child_process` / `path`（`path.join` 走 infra）/ 直接 `new MessageChannelMain`
   - `services/**` 禁止 `electron/ipcMain`（`ipcMain` 只在 ipc 层用）
-- [ ] 5.13 将 `pnpm test` 纳入本 change 的验证清单；CI 未配置时本 change 不引入 CI 变动，仅确认本地可跑
+- [x] 5.13 将 `pnpm test` 纳入本 change 的验证清单；CI 未配置时本 change 不引入 CI 变动，仅确认本地可跑
 
 ## 6. Phase 5 — 文档与规范落地
 

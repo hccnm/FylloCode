@@ -1,13 +1,4 @@
-import type { IpcErrorCode } from "@shared/constants/error-codes";
-
-/** Error carrying an `IpcErrorCode` on its `code` field. */
-export interface IpcError extends Error {
-  code: IpcErrorCode;
-}
-
-/** Construct a domain error whose `code` is guaranteed to be a known `IpcErrorCode`. */
-export function ipcError(code: IpcErrorCode, message: string): IpcError {
-  const error = new Error(message) as IpcError;
-  error.code = code;
-  return error;
-}
+// Re-export from shared so `ipcError` is importable from either
+// `@main/ipc/_kit/errors` (IPC layer) or `@shared/errors/ipc-error`
+// (everywhere else including infra).
+export { ipcError, type IpcError } from "@shared/errors/ipc-error";
