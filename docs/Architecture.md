@@ -69,27 +69,39 @@ Electron 内部缓存（Code Cache、GPU Cache 等）始终使用系统默认路
 ### 进程模型
 
 ```
-electron/main/index.ts      # 主进程：窗口创建、生命周期、IPC 监听
-electron/preload/index.ts   # 预加载：contextBridge 安全暴露 API
-electron/preload/index.d.ts # 预加载类型声明（window.electron / window.api）
-frontend/src/               # 渲染进程：Vue 3 应用
-shared/types/               # 主进程与渲染进程共享的类型
+electron/main/           # 主进程：入口、bootstrap、IPC 层、应用服务、领域、基础设施
+electron/preload/        # 预加载：contextBridge 安全暴露 API
+electron/preload/index.d.ts  # 预加载类型声明（window.electron / window.api）
+frontend/src/            # 渲染进程：Vue 3 应用
+shared/                  # 跨进程共享：types / constants / schemas / errors
 ```
 
 IPC 通信：渲染进程通过 `window.electron.ipcRenderer` 调用主进程；新增 channel 时同步更新 `preload/index.d.ts`。
 
-### 主进程 (`electron/main/`)
+### 主进程分层
 
-- 入口 `index.ts` 负责窗口创建、应用生命周期管理、IPC 监听
-- 使用 `@electron-toolkit/utils` 提供的工具函数（`electronApp`、`optimizer`、`is`）
-- 窗口配置：开发环境通过 `ELECTRON_RENDERER_URL` 加载远程 URL，生产环境加载本地 HTML
+主进程按五层组织，详见 **[MainProcess](./MainProcess.md)**：
+
+```
+electron/main/
+├── bootstrap/    # 应用生命周期、窗口创建、disposable 注册中心
+├── ipc/          # IPC handler（零业务逻辑）+ _kit 共享基础设施
+├── services/     # 应用服务：跨领域编排、持久化协调、事件广播
+├── domain/       # 领域纯逻辑与契约（无 electron / infra 依赖）
+└── infra/        # 基础设施适配器（storage / process / paths / logger / ids）
+```
+
+- 入口 `electron/main/index.ts` 只调用 `bootstrap.startApp()`。
+- `bootstrap/index.ts` 负责 `app.whenReady` / `window-all-closed` / `activate` / `before-quit` 的生命周期。
+- `before-quit` 拦截默认行为，调用 `disposeAll()` 按逆序释放所有 disposable，然后 `app.exit(0)`。
+- 窗口配置：开发环境通过 `ELECTRON_RENDERER_URL` 加载远程 URL，生产环境加载本地 HTML。
 
 ### 日志规范
 
-统一使用 `electron-log` v5，通过 `electron/main/utils/logger.ts` 封装后导出：
+统一使用 `electron-log` v5，通过 `electron/main/infra/logger/index.ts` 封装后导出：
 
 ```ts
-import logger from "@main/utils/logger";
+import logger from "@main/infra/logger";
 
 logger.info("...");
 logger.warn("...");

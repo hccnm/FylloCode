@@ -96,6 +96,8 @@
 type IpcResponse<T> = { ok: true; data: T } | { ok: false; error: IpcErrorInfo };
 ```
 
+`error.code` 的类型是 `IpcErrorCode` 联合，来自 `shared/constants/error-codes.ts`。未在该文件登记的错误码字面量不能通过类型检查。
+
 渲染进程调用示例：
 
 ```ts
@@ -103,14 +105,40 @@ const res = await window.api.chat.listSessions({ projectId: "xxx" });
 if (res.ok) {
   // res.data: Session[]
 } else {
-  // res.error: { code: string; message: string }
+  // res.error: { code: IpcErrorCode; message: string }
 }
 ```
+
+## Handler 实现约束
+
+所有主进程 handler 通过 `electron/main/ipc/_kit/` 下的四件套实现，详见 **[MainProcess](./MainProcess.md)**：
+
+- `wrapHandler` — 请求-响应 handler 必须用它包装，异常自动归一化成 `{ ok: false, error }`。
+- `makeStreamChannel` — 流式 handler 必须用它创建 MessagePort，禁止手写 `portClosed` 守卫、`sendChunk/sendDone/sendError` 模板。
+- `validate` — handler 入参必须通过 zod schema 校验；schema 位于 `shared/schemas/ipc/<domain>.ts`，校验失败统一返回 `VALIDATION_ERROR`。
+- `ipcError` — 构造带 `IpcErrorCode` 的 Error，替代所有 `createXxxError`/`Object.assign(new Error(), { code })` 样板。
+
+handler 函数体应严格遵循 **validate → call service → return** 三步，业务逻辑必须下沉到 `electron/main/services/`。
+
+## 错误码清单
+
+所有合法错误码定义在 `shared/constants/error-codes.ts`。新增错误码**必须**通过 OpenSpec change 提交：
+
+- 通用：`UNKNOWN_ERROR`、`VALIDATION_ERROR`、`STREAM_INIT_FAILED`
+- Project：`PROJECT_NOT_FOUND`、`PROJECT_REQUIRED`
+- Chat：`CHAT_SESSION_NOT_FOUND`
+- Proposal：`PROPOSAL_NOT_FOUND`、`APPLY_RUN_NOT_FOUND`、`APPLY_RUN_NOT_READY`、`APPLY_SESSION_NOT_READY`、`APPLY_RUN_PERSIST_FAILED`、`STAGE_NOT_FOUND`、`STAGE_TYPE_NOT_IMPLEMENTED`
+- Workflow：`WORKFLOW_NOT_FOUND`、`INVALID_WORKFLOW_NAME`、`BUILT_IN_WORKFLOW`
+- ACP：`AGENT_NOT_FOUND`、`ACP_ERROR`、`ACP_NOT_READY`、`ACP_EXIT_GIVEUP`、`SPAWN_ERROR`
+- Integration：`YUNXIAO_API_ERROR`
 
 ## 新增 Channel 流程
 
 1. 在 `shared/types/channels.ts` 添加常量
-2. 在 `electron/preload/index.ts` 的 `contextBridge.exposeInMainWorld` 中暴露方法
-3. 在 `electron/preload/index.d.ts` 中更新 `window.api` 类型声明
-4. 在 `electron/main/index.ts` 中注册 `ipcMain.handle` 或 `ipcMain.on`
-5. 在 `frontend/src/api/` 对应文件中添加调用封装
+2. 在 `shared/schemas/ipc/<domain>.ts` 添加 zod 入参 schema
+3. 若需要新错误码，在 `shared/constants/error-codes.ts` 中登记（需 OpenSpec change）
+4. 在 `electron/main/services/<domain>/<domain>-service.ts` 实现业务逻辑
+5. 在 `electron/main/ipc/<domain>.ts` 中用 `wrapHandler` + `validate` 注册 handler，仅做 service 调用
+6. 在 `electron/preload/api/<domain>.ts` 中暴露方法，同步更新 `preload/index.d.ts`
+7. 在 `frontend/src/api/` 对应文件中添加调用封装
+8. 为 service / domain 纯函数补单测

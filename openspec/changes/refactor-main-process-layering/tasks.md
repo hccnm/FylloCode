@@ -84,10 +84,10 @@
 
 ## 6. Phase 5 — 文档与规范落地
 
-- [ ] 6.1 新增 `docs/MainProcess.md`：完整描述 bootstrap / ipc / services / domain / infra 五层职责、依赖方向、`_kit` 使用约定、SessionRegistry 用法、disposable 注册流程、路径 / ID / logger tag 单点规则；并给出"新增一个 IPC 方法"的 step-by-step
-- [ ] 6.2 更新 `docs/Architecture.md` 中"Electron 进程规范"章节，替换旧的 `main/index.ts` 直接负责 IPC 监听的描述，引用 `MainProcess.md`
-- [ ] 6.3 更新 `docs/IPC.md`：新增"handler 实现约束"章节（必须用 `wrapHandler` / `makeStreamChannel`）、新增"错误码清单"章节（指向 `shared/constants/error-codes.ts`）、新增"入参 schema"章节
-- [ ] 6.4 更新 `CLAUDE.md` 的"文档归类"链接表，新增 `MainProcess` 一行
-- [ ] 6.5 最终运行 `openspec validate refactor-main-process-layering --strict` 通过
-- [ ] 6.6 最终运行 `pnpm typecheck && pnpm lint && pnpm build && pnpm test` 全绿
+- [x] 6.1 新增 `docs/MainProcess.md`：完整描述 bootstrap / ipc / services / domain / infra 五层职责、依赖方向、`_kit` 使用约定、SessionRegistry 用法、disposable 注册流程、路径 / ID / logger tag 单点规则；并给出"新增一个 IPC 方法"的 step-by-step
+- [x] 6.2 更新 `docs/Architecture.md` 中"Electron 进程规范"章节，替换旧的 `main/index.ts` 直接负责 IPC 监听的描述，引用 `MainProcess.md`
+- [x] 6.3 更新 `docs/IPC.md`：新增"handler 实现约束"章节（必须用 `wrapHandler` / `makeStreamChannel`）、新增"错误码清单"章节（指向 `shared/constants/error-codes.ts`）、新增"入参 schema"章节
+- [x] 6.4 更新 `CLAUDE.md` 的"文档归类"链接表，新增 `MainProcess` 一行
+- [x] 6.5 最终运行 `openspec validate refactor-main-process-layering --strict` 通过
+- [x] 6.6 最终运行 `pnpm typecheck && pnpm lint && pnpm build && pnpm test` 全绿
 - [ ] 6.7 最终手工冒烟回归：项目列表 → 进入项目 → 新建 chat session → 发消息走流式 → 打开 proposal → apply 一个 stage → archive → 切换其他 project → 连接/断开 yunxiao → Cmd+Q 优雅退出；对比 `data/logs/main.log` 与 Phase 0 baseline 无回归
