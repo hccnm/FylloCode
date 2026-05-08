@@ -106,13 +106,50 @@ function cancelEditing(): void {
   yamlContent.value = "";
 }
 
+async function deleteTemplate(id: string): Promise<void> {
+  const template =
+    workflowStore.templates.find((item) => item.id === id) ??
+    workflowStore.templates.find((item) => item.name === id);
+
+  if (!template) {
+    return;
+  }
+
+  try {
+    await workflowStore.deleteTemplate(template.name);
+    cancelEditing();
+    toast.add({
+      title: "删除成功",
+      description: `已删除工作流模板「${template.name}」`,
+    });
+  } catch (error) {
+    toast.add({
+      title: "删除工作流失败",
+      description: error instanceof Error ? error.message : String(error),
+      color: "error",
+    });
+  }
+}
+
+function handleDetailDelete(): void {
+  if (!selectedTemplate.value) {
+    return;
+  }
+
+  void deleteTemplate(selectedTemplate.value.name);
+}
+
 async function saveTemplate(payload: { name: string; yaml: string }): Promise<void> {
   isSaving.value = true;
+  const isCopySave = selectedTemplate.value?.source === "built-in";
   try {
     await workflowStore.saveTemplate(payload.name, payload.yaml);
     draftTemplate.value = null;
     yamlContent.value = payload.yaml;
     selectedTemplateId.value = payload.name;
+    toast.add({
+      title: isCopySave ? "复制并保存成功" : "保存 YAML 成功",
+    });
   } catch (error) {
     toast.add({
       title: "保存工作流失败",
@@ -146,6 +183,7 @@ watch(
       :loading="workflowStore.isLoading"
       @select="selectTemplate"
       @create="createTemplate"
+      @delete="deleteTemplate"
     />
 
     <main class="flex-1 min-w-0 flex flex-col bg-default">
@@ -162,8 +200,8 @@ watch(
         v-model="yamlContent"
         :template="selectedTemplate"
         :saving="isSaving"
-        @cancel="cancelEditing"
         @save="saveTemplate"
+        @delete="handleDetailDelete"
       />
     </main>
   </div>

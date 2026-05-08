@@ -106,7 +106,7 @@ function handleRemoveStage(stageId: string): void {
   <div class="flex flex-col min-h-0">
     <div class="flex items-center justify-between gap-3 mb-3 shrink-0">
       <div class="flex items-center gap-2 min-w-0">
-        <p class="text-xs font-medium text-muted">从 YAML 渲染的阶段预览</p>
+        <p class="text-xs font-medium text-muted">Workflow 阶段预览</p>
         <UBadge color="neutral" variant="soft" size="xs"> {{ stages.length }} 个阶段 </UBadge>
       </div>
 

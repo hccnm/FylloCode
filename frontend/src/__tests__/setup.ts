@@ -38,6 +38,8 @@ config.global.stubs = {
   Button: buttonStub,
   UDropdownMenu: dropdownMenuStub,
   DropdownMenu: dropdownMenuStub,
+  UTooltip: true,
+  Tooltip: true,
   UBadge: true,
   UInput: {
     template:

@@ -15,8 +15,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
-  cancel: [];
   save: [payload: { name: string; yaml: string }];
+  delete: [];
 }>();
 
 const toast = useToast();
@@ -67,21 +67,36 @@ function handleSave(): void {
       <span>内置模板不可直接编辑，保存时将创建自定义副本</span>
     </div>
 
-    <div class="flex items-center justify-between gap-4 px-6 py-4 border-b border-default shrink-0">
-      <div class="min-w-0">
-        <h1 class="text-lg font-semibold text-highlighted truncate">
-          {{ parsedWorkflow.name }}
-        </h1>
-        <p class="text-xs text-muted mt-1 truncate">
-          {{ parsedWorkflow.description }}
-        </p>
+    <div class="flex items-start justify-between gap-6 px-6 py-4 border-b border-default shrink-0">
+      <div class="header-left min-w-0 flex-1">
+        <div class="flex items-center gap-2 min-w-0">
+          <h1 class="text-lg font-semibold text-highlighted truncate">
+            {{ parsedWorkflow.name }}
+          </h1>
+          <p class="text-sm text-muted truncate">
+            {{ parsedWorkflow.description }}
+          </p>
+        </div>
+
+        <div class="mt-2 flex items-center gap-2">
+          <UBadge color="neutral" variant="soft">v{{ parsedWorkflow.version }}</UBadge>
+          <UBadge v-if="isBuiltIn" color="neutral" variant="soft">内置</UBadge>
+          <UBadge v-else color="primary" variant="soft">自定义</UBadge>
+        </div>
       </div>
 
-      <div class="flex items-center gap-2 shrink-0">
-        <UBadge color="neutral" variant="soft">v{{ parsedWorkflow.version }}</UBadge>
-        <UBadge v-if="isBuiltIn" color="neutral" variant="soft">内置</UBadge>
-        <UBadge v-else color="primary" variant="soft">自定义</UBadge>
-        <UButton variant="ghost" color="neutral" size="sm" label="取消" @click="emit('cancel')" />
+      <div class="header-right self-center flex items-center gap-2 shrink-0">
+        <UButton
+          v-if="!isBuiltIn"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          icon="i-lucide-trash-2"
+          class="text-muted transition-colors hover:bg-error/10 hover:text-error"
+          @click="emit('delete')"
+        >
+          删除
+        </UButton>
         <UButton
           color="primary"
           size="sm"
