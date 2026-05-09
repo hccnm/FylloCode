@@ -1,10 +1,4 @@
-# session-management 规范
-
-## Purpose
-
-Session 管理定义了 Chat 左侧边栏中 session 列表的展示、新建、选择和操作行为。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Sessions 标签列出所有项目 session
 
@@ -24,18 +18,6 @@ Session 管理定义了 Chat 左侧边栏中 session 列表的展示、新建、
 
 - **WHEN** 用户切换到另一个项目
 - **THEN** session 列表清空并重新从磁盘加载该项目的 session 列表
-
-### Requirement: 新建 Session 按钮进入空白草稿态
-
-系统 SHALL 在 Sessions 标签顶部提供"新建 Session"按钮。点击后，系统 SHALL 进入空白草稿态，而不是立即创建并持久化新的 session。
-
-#### Scenario: 点击新建进入草稿态
-
-- **WHEN** 用户点击"新建 Session"按钮
-- **THEN** `activeSessionId` 被清空，session 列表中没有任何条目处于选中状态
-- **AND** Chat 区域显示无历史消息的空白输入态
-- **AND** session 列表不新增条目
-- **AND** 磁盘上不生成新的 session 元数据文件
 
 ### Requirement: Session 条目支持选择和操作
 

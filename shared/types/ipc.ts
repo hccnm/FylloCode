@@ -30,6 +30,12 @@ export type MessageChunkData =
       input?: Record<string, unknown>;
       content?: string;
     }
+  | {
+      kind: "usage_update";
+      used: number;
+      size: number;
+      cost?: { amount: number; currency: string };
+    }
   | { kind: "session_info_update"; title: string }
   | { kind: "user_message"; message: UIMessage<MessageMeta> }
   | { kind: "status"; agentStatus: ChatStatus };

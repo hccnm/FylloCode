@@ -2,7 +2,7 @@ import { ref } from "vue";
 import { defineStore } from "pinia";
 import { generateId } from "ai";
 import { useToast } from "@nuxt/ui/composables";
-import type { ChatStatus, Message, ModeType, Session, TokenUsage } from "@shared/types/chat";
+import type { ChatStatus, Message, ModeType, Session } from "@shared/types/chat";
 import { chatApi } from "@renderer/api/chat";
 import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import { useProjectStore } from "./project";
@@ -33,12 +33,6 @@ export const useChatStore = defineStore("chat", () => {
   const toast = useToast();
   const chatStatus = ref<ChatStatus>("ready");
   const mode = ref<ModeType>("manual");
-  const tokenUsage = ref<TokenUsage>({
-    input: 12450,
-    output: 8932,
-    total: 21382,
-    estimatedCost: "$0.64",
-  });
 
   function queueUserMessage(
     session: Session,
@@ -85,15 +79,23 @@ export const useChatStore = defineStore("chat", () => {
           return;
         }
 
+        if (data.kind === "usage_update") {
+          activeSession.tokenUsage = {
+            used: data.used,
+            size: data.size,
+            cost: data.cost,
+          };
+          return;
+        }
+
         assembler.applyChunk(data);
       },
       onDone(done) {
         assembler.resetActive();
         chatStatus.value = "ready";
-        tokenUsage.value = {
-          ...tokenUsage.value,
-          output: tokenUsage.value.output + done.totalTokens,
-          total: tokenUsage.value.total + done.totalTokens,
+        activeSession.tokenUsage = {
+          ...activeSession.tokenUsage,
+          used: activeSession.tokenUsage.used + done.totalTokens,
         };
         activeSession.updatedAt = new Date();
         activeSession.status = "ended";
@@ -172,7 +174,6 @@ export const useChatStore = defineStore("chat", () => {
   return {
     chatStatus,
     mode,
-    tokenUsage,
     sendMessage,
     setMode,
   };

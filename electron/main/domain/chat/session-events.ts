@@ -10,6 +10,12 @@ export type SessionEvent =
       input?: Record<string, unknown>;
       content?: string;
     }
+  | {
+      type: "usage_update";
+      used: number;
+      size: number;
+      cost?: { amount: number; currency: string };
+    }
   | { type: "session_info_update"; title: string }
   | { type: "done"; totalTokens: number }
   | { type: "error"; code: string; message: string }

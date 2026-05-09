@@ -44,6 +44,27 @@ function mapAcpErrorCode(raw: string): IpcErrorCode {
   return IpcErrorCodes.ACP_ERROR;
 }
 
+async function updateSessionTokenUsage(
+  projectPath: string,
+  sessionId: string,
+  tokenUsage: {
+    used: number;
+    size: number;
+    cost?: { amount: number; currency: string };
+  }
+): Promise<void> {
+  const currentMeta = await loadSessionMeta(projectPath, sessionId);
+  if (!currentMeta) {
+    return;
+  }
+
+  await saveSessionMeta(projectPath, {
+    ...currentMeta,
+    tokenUsage,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 export function registerChatHandlers(): void {
   ipcMain.handle(ChatChannels.listSessions, (_event, input: unknown) =>
     wrapHandler(async () => {
@@ -138,6 +159,7 @@ export function registerChatHandlers(): void {
           cwd: projectPath,
         });
         const assembler = new MessageAssembler(sessionId);
+        let usageUpdatePersist = Promise.resolve();
         sessionRegistry.register("chat", sessionId, session);
 
         session.on("event", (ev: SessionEvent) => {
@@ -151,6 +173,22 @@ export function registerChatHandlers(): void {
               assembler.apply(ev);
               const chunk = toMessageChunk(ev);
               if (chunk) sink.sendChunk(chunk);
+              break;
+            }
+            case "usage_update": {
+              const chunk = toMessageChunk(ev);
+              if (chunk) sink.sendChunk(chunk);
+              usageUpdatePersist = usageUpdatePersist
+                .then(() =>
+                  updateSessionTokenUsage(projectPath, sessionId, {
+                    used: ev.used,
+                    size: ev.size,
+                    cost: ev.cost,
+                  })
+                )
+                .catch((error: unknown) => {
+                  logger.error("[chat] failed to persist session usage update", error);
+                });
               break;
             }
             case "session_info_update":
@@ -174,6 +212,19 @@ export function registerChatHandlers(): void {
                 const message = assembler.flush();
                 if (message) {
                   await appendMessage(projectPath, sessionId, message);
+                }
+                await usageUpdatePersist;
+                const currentMeta = await loadSessionMeta(projectPath, sessionId);
+                if (currentMeta) {
+                  await saveSessionMeta(projectPath, {
+                    ...currentMeta,
+                    tokenUsage: {
+                      ...currentMeta.tokenUsage,
+                      used: currentMeta.tokenUsage.used + ev.totalTokens,
+                      size: currentMeta.tokenUsage.size,
+                    },
+                    updatedAt: new Date().toISOString(),
+                  });
                 }
                 sink.sendDone(ev.totalTokens);
                 sessionRegistry.unregister("chat", sessionId);

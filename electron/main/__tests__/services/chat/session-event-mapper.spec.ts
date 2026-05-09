@@ -55,6 +55,22 @@ describe("toMessageChunk", () => {
     ).toEqual({ kind: "session_info_update", title: "New title" });
   });
 
+  it("maps usage_update", () => {
+    const ev: SessionEvent = {
+      type: "usage_update",
+      used: 29017,
+      size: 1000000,
+      cost: { amount: 0.145305, currency: "USD" },
+    };
+
+    expect(toMessageChunk(ev)).toEqual({
+      kind: "usage_update",
+      used: 29017,
+      size: 1000000,
+      cost: { amount: 0.145305, currency: "USD" },
+    });
+  });
+
   it("returns null for terminal / internal events", () => {
     expect(toMessageChunk({ type: "done", totalTokens: 42 } as SessionEvent)).toBeNull();
     expect(

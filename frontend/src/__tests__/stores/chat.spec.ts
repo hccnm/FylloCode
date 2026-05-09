@@ -83,6 +83,7 @@ describe("useChatStore", () => {
         title: "hello world",
         status: "ended",
         turnCount: 0,
+        tokenUsage: { used: 0, size: 0 },
         createdAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
         updatedAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
         messages: [],
@@ -202,6 +203,7 @@ describe("useChatStore", () => {
         title: "hello world this message is in",
         status: "ended",
         turnCount: 0,
+        tokenUsage: { used: 0, size: 0 },
         createdAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
         updatedAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
         messages: [],
@@ -254,6 +256,48 @@ describe("useChatStore", () => {
     expect(callbacks).not.toBeNull();
     callbacks!.onChunk({ kind: "session_info_update", title: "Agent Generated Title" });
     expect(sessionStore.activeSession?.title).toBe("Agent Generated Title");
+  });
+
+  it("updates active session token usage from usage_update chunks", async () => {
+    const acpAgentsStore = useAcpAgentsStore();
+    acpAgentsStore.registry = mockRegistry;
+    acpAgentsStore.statuses = mockStatuses;
+
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project 1",
+      path: "/tmp/project-1",
+      createdAt: new Date("2026-04-30T08:00:00.000Z"),
+      lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
+    };
+
+    let callbacks: StreamCallbacks | null = null;
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+        callbacks = nextCallbacks;
+        return () => {};
+      }
+    );
+
+    const sessionStore = useSessionStore();
+    sessionStore.beginDraftSession();
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage("hello world");
+
+    callbacks!.onChunk({
+      kind: "usage_update",
+      used: 29017,
+      size: 1000000,
+      cost: { amount: 0.145305, currency: "USD" },
+    });
+
+    expect(sessionStore.activeSession?.tokenUsage).toEqual({
+      used: 29017,
+      size: 1000000,
+      cost: { amount: 0.145305, currency: "USD" },
+    });
   });
 
   it("does not persist assistant messages from onDone", async () => {

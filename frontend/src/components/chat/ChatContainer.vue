@@ -4,6 +4,7 @@ import { storeToRefs } from "pinia";
 import { useChatStore } from "@renderer/stores/chat";
 import { useSessionStore } from "@renderer/stores/session";
 import ChatAgentSelect from "./ChatAgentSelect.vue";
+import ContextUsageRing from "./ContextUsageRing.vue";
 import UIMessageList from "@renderer/components/shared/UIMessageList.vue";
 
 const store = useChatStore();
@@ -64,7 +65,15 @@ async function handleSubmit(): Promise<void> {
           @submit="handleSubmit"
         >
           <template #footer>
-            <ChatAgentSelect v-model="agent" :disabled="isAgentLocked" />
+            <div class="inline-flex items-center gap-2 min-w-0">
+              <ContextUsageRing
+                v-if="activeSession"
+                :used="activeSession.tokenUsage.used"
+                :size="activeSession.tokenUsage.size"
+                :cost="activeSession.tokenUsage.cost"
+              />
+              <ChatAgentSelect v-model="agent" :disabled="isAgentLocked" />
+            </div>
 
             <UChatPromptSubmit :status="chatStatus" color="neutral" size="sm" />
           </template>

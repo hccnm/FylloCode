@@ -1,6 +1,6 @@
 import { computed, ref, watch } from "vue";
 import { defineStore } from "pinia";
-import type { Message, Session } from "@shared/types/chat";
+import type { Message, Session, TokenUsage } from "@shared/types/chat";
 import { chatApi } from "@renderer/api/chat";
 import { useAcpAgentsStore } from "./acp-agents";
 import { useProjectStore } from "./project";
@@ -14,9 +14,10 @@ type SerializedMessage = Omit<Message, "metadata"> & {
   };
 };
 
-type SerializedSession = Omit<Session, "createdAt" | "updatedAt" | "messages"> & {
+type SerializedSession = Omit<Session, "createdAt" | "updatedAt" | "messages" | "tokenUsage"> & {
   createdAt: SerializableDate;
   updatedAt: SerializableDate;
+  tokenUsage?: Partial<TokenUsage>;
   messages: SerializedMessage[];
 };
 
@@ -38,9 +39,18 @@ function normalizeMessage(message: SerializedMessage): Message {
   } as Message;
 }
 
+function normalizeTokenUsage(tokenUsage: Partial<TokenUsage> | null | undefined): TokenUsage {
+  return {
+    used: typeof tokenUsage?.used === "number" ? tokenUsage.used : 0,
+    size: typeof tokenUsage?.size === "number" ? tokenUsage.size : 0,
+    cost: tokenUsage?.cost,
+  };
+}
+
 function normalizeSession(session: SerializedSession): Session {
   return {
     ...session,
+    tokenUsage: normalizeTokenUsage(session.tokenUsage),
     createdAt: toDate(session.createdAt),
     updatedAt: toDate(session.updatedAt),
     messages: session.messages.map((message) => normalizeMessage(message)),
@@ -106,6 +116,7 @@ export const useSessionStore = defineStore("session", () => {
     session.title = nextSession.title;
     session.status = nextSession.status;
     session.turnCount = nextSession.turnCount;
+    session.tokenUsage = normalizeTokenUsage(nextSession.tokenUsage);
     session.createdAt = nextSession.createdAt;
     session.updatedAt = nextSession.updatedAt;
     return session;

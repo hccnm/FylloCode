@@ -32,6 +32,7 @@ export function toSession(meta: SessionMeta, projectId: string): Session {
     title: meta.title,
     status: "ended",
     turnCount: meta.turnCount,
+    tokenUsage: meta.tokenUsage,
     createdAt: new Date(meta.createdAt),
     updatedAt: new Date(meta.updatedAt),
     messages: [],
@@ -58,6 +59,7 @@ export async function createSession(input: {
     agentId: input.agentId ?? DEFAULT_ACP_AGENT_ID,
     title: input.title,
     turnCount: 0,
+    tokenUsage: { used: 0, size: 0 },
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };

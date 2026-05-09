@@ -28,6 +28,8 @@ export function toMessageChunk(ev: SessionEvent): MessageChunkData | null {
           : undefined,
         content: ev.content,
       };
+    case "usage_update":
+      return { kind: "usage_update", used: ev.used, size: ev.size, cost: ev.cost };
     case "session_info_update":
       return { kind: "session_info_update", title: ev.title };
     case "session_id_resolved":

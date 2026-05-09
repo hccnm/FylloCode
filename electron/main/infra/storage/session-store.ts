@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { sessionsDir } from "@main/infra/storage/project-paths";
-import type { MessageMeta } from "@shared/types/chat";
+import type { MessageMeta, TokenUsage } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
 export interface SessionMeta {
@@ -10,9 +10,12 @@ export interface SessionMeta {
   agentId: string;
   title: string;
   turnCount: number;
+  tokenUsage: TokenUsage;
   createdAt: string;
   updatedAt: string;
 }
+
+const DEFAULT_TOKEN_USAGE: Pick<TokenUsage, "used" | "size"> = { used: 0, size: 0 };
 
 function metaPath(projectPath: string, sessionId: string): string {
   return join(sessionsDir(projectPath), `${sessionId}.json`);
@@ -26,9 +29,43 @@ async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
+function normalizeCost(cost: Partial<TokenUsage["cost"]> | null | undefined): TokenUsage["cost"] {
+  if (typeof cost?.amount !== "number" || typeof cost.currency !== "string") {
+    return undefined;
+  }
+
+  return {
+    amount: cost.amount,
+    currency: cost.currency,
+  };
+}
+
+function normalizeTokenUsage(tokenUsage: Partial<TokenUsage> | null | undefined): TokenUsage {
+  return {
+    used: typeof tokenUsage?.used === "number" ? tokenUsage.used : DEFAULT_TOKEN_USAGE.used,
+    size: typeof tokenUsage?.size === "number" ? tokenUsage.size : DEFAULT_TOKEN_USAGE.size,
+    cost: normalizeCost(tokenUsage?.cost),
+  };
+}
+
+function normalizeSessionMeta(raw: unknown): SessionMeta {
+  const meta = raw as Omit<SessionMeta, "tokenUsage"> & {
+    tokenUsage?: Partial<TokenUsage>;
+  };
+
+  return {
+    ...meta,
+    tokenUsage: normalizeTokenUsage(meta.tokenUsage),
+  };
+}
+
 export async function saveSessionMeta(projectPath: string, meta: SessionMeta): Promise<void> {
   await ensureDir(sessionsDir(projectPath));
-  await fs.writeFile(metaPath(projectPath, meta.sessionId), JSON.stringify(meta, null, 2), "utf8");
+  await fs.writeFile(
+    metaPath(projectPath, meta.sessionId),
+    JSON.stringify(normalizeSessionMeta(meta), null, 2),
+    "utf8"
+  );
 }
 
 export async function loadSessionMeta(
@@ -37,7 +74,7 @@ export async function loadSessionMeta(
 ): Promise<SessionMeta | null> {
   try {
     const content = await fs.readFile(metaPath(projectPath, sessionId), "utf8");
-    return JSON.parse(content) as SessionMeta;
+    return normalizeSessionMeta(JSON.parse(content));
   } catch {
     return null;
   }
@@ -52,7 +89,7 @@ export async function listSessionMetas(projectPath: string): Promise<SessionMeta
       if (!file.endsWith(".json")) continue;
       try {
         const content = await fs.readFile(join(dir, file), "utf8");
-        metas.push(JSON.parse(content) as SessionMeta);
+        metas.push(normalizeSessionMeta(JSON.parse(content)));
       } catch {
         // skip malformed files
       }

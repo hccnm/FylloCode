@@ -68,6 +68,7 @@ export class AcpSession extends EventEmitter {
       agentId,
       title: meta?.title ?? "New Session",
       turnCount: (meta?.turnCount ?? 0) + 1,
+      tokenUsage: meta?.tokenUsage ?? { used: 0, size: 0 },
       createdAt: meta?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });

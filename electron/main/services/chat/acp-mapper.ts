@@ -51,6 +51,22 @@ export function mapSessionUpdate(update: SessionUpdate): SessionEvent | null {
       return event;
     }
 
+    case "usage_update": {
+      const event: SessionEvent = {
+        type: "usage_update",
+        used: update.used,
+        size: update.size,
+        cost: update.cost
+          ? {
+              amount: update.cost.amount,
+              currency: update.cost.currency ?? "USD",
+            }
+          : undefined,
+      };
+      logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
+      return event;
+    }
+
     case "session_info_update": {
       const title = typeof update.title === "string" ? update.title.trim() : "";
       if (!title) return null;

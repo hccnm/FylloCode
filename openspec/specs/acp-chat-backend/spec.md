@@ -89,6 +89,12 @@ type SessionEvent =
       status: "in_progress" | "completed" | "failed";
       content?: string;
     }
+  | {
+      type: "usage_update";
+      used: number;
+      size: number;
+      cost?: { amount: number; currency: string };
+    }
   | { type: "done"; totalTokens: number }
   | { type: "error"; code: string; message: string }
   | { type: "session_id_resolved"; acpSessionId: string };
@@ -109,6 +115,12 @@ type SessionEvent =
 - **WHEN** ACP 推送 `sessionUpdate === "tool_call_update"`，`status` 为 `"in_progress"`、`"completed"` 或 `"failed"`
 - **THEN** 通过 MessagePort 发送 `{ type: "chunk", data: { kind: "tool_call_update", toolCallId, status, content } }`
 - **AND** `content` 为 `tool_call_update.content` 中所有 text 类型 ContentBlock 的拼合文本（无 content 时为 `undefined`）
+
+#### Scenario: usage_update 实时推送
+
+- **WHEN** ACP 推送 `sessionUpdate === "usage_update"`
+- **THEN** 通过 MessagePort 发送 `{ type: "chunk", data: { kind: "usage_update", used, size, cost } }`
+- **AND** `used`、`size`、`cost` 直接透传 ACP 推送的原始值
 
 #### Scenario: prompt 完成
 
@@ -132,6 +144,7 @@ type SessionEvent =
 - 后续 `text_delta` 追加到 `activeAssistantId` 对应消息的 text part
 - 收到 `tool_call_start` 时，向 `activeAssistantId` 对应消息追加一个 `dynamic-tool` part（`state: "input-available"`，携带 `toolCallId`、`toolName: title`、`input: {}`）；若当前无活跃 assistant message，先创建一条
 - 收到 `tool_call_update`（completed/failed）时，找到对应 `toolCallId` 的 `dynamic-tool` part，更新 `state` 为 `"output-available"`，写入 `output: content`
+- 收到 `usage_update` 时，更新 `activeSession.tokenUsage`
 - 收到 `done` 时，清空 `activeAssistantId`
 
 **`MessageChunkData` 类型（替换旧定义）：**
@@ -145,6 +158,12 @@ type MessageChunkData =
       toolCallId: string;
       status: "in_progress" | "completed" | "failed";
       content?: string;
+    }
+  | {
+      kind: "usage_update";
+      used: number;
+      size: number;
+      cost?: { amount: number; currency: string };
     }
   | { kind: "status"; agentStatus: ChatStatus };
 ```
@@ -165,11 +184,32 @@ type MessageChunkData =
 - **WHEN** 同一轮回复中 `text_delta` 和 `tool_call_start` 交替到达
 - **THEN** 所有内容归并到同一条 assistant UIMessage 的 `parts` 数组，顺序与到达顺序一致
 
+#### Scenario: 流式过程中实时更新 token 用量
+
+- **WHEN** 前端收到 `usage_update` chunk，携带 `used` 和 `size`
+- **THEN** chat store 更新 `activeSession.tokenUsage.used` 为 `used`
+- **AND** 更新 `activeSession.tokenUsage.size` 为 `size`
+- **AND** 若 chunk 包含 `cost`，更新 `activeSession.tokenUsage.cost` 为 `cost`
+- **AND** UI 环形进度条实时反映新百分比
+
+#### Scenario: 流式完成后保持 token 用量
+
+- **WHEN** 前端收到 `done` 事件
+- **THEN** chat store 不清空 `tokenUsage`，保持当前累计值供后续轮次继续累加
+
 ### Requirement: Main 进程在 chat stream done 时组装并持久化 assistant UIMessage
 
 系统 SHALL 在 `chat:stream:message` 的主进程 handler 中维护 `MessageAssembler` 实例（来自 `@main/services/chat/message-assembler`），在 `text_delta` / `tool_call_start` / `tool_call_update` 事件上调用 `assembler.apply(ev)`，并在收到 `done` 事件时先执行 `assembler.flush()`，将返回的 `UIMessage<MessageMeta>` 通过 `appendMessage` 写入 `sessions/<sessionId>.messages.jsonl`，随后再通过 sink 发送 `done` chunk。落盘失败 SHALL 通过 sink 以 `ACP_ERROR` 归一化抛错，不阻塞 session 注销。
 
 `MessageAssembler.flush()` 产生的 `UIMessage.id` 由主进程自行 `generateId()` 生成，与渲染进程活跃期间使用的临时 id 独立。
+
+#### Scenario: usage_update 透传并实时持久化
+
+- **WHEN** `chat:stream:message` 的 `AcpSession` emit `usage_update` 事件
+- **THEN** 主进程直接通过 sink 发送 `{ type: "chunk", data: { kind: "usage_update", used, size, cost } }`
+- **AND** 不经过 `MessageAssembler`
+- **AND** 立即更新 session 元数据的 `tokenUsage` 为 `{ used, size, cost }` 并调用 `saveSessionMeta` 持久化到磁盘
+- **AND** 当 `cost` 不存在时，`tokenUsage.cost` SHALL 保持为 `undefined`
 
 #### Scenario: Stage 正常完成时主进程组装并落盘 assistant 消息
 
@@ -177,6 +217,8 @@ type MessageChunkData =
 - **THEN** 主进程调用 `assembler.flush()` 得到完整 `UIMessage<MessageMeta>`
 - **AND** 通过 `appendMessage(projectPath, sessionId, message)` 将该消息写入磁盘
 - **AND** 通过 sink 发送 `{ type: "done", data: { totalTokens } }`
+- **AND** 更新 session 元数据的 `tokenUsage.used` 字段（累加 `totalTokens`）
+- **AND** 保留 session 元数据中已有的 `tokenUsage.cost`
 - **AND** 从 `sessionRegistry` 注销对应的 `chat` session
 
 #### Scenario: 渲染进程在流中途关闭仍完成 assistant 落盘
@@ -216,7 +258,9 @@ type MessageChunkData =
 #### Scenario: 首次创建 session 时写入持久化文件
 
 - **WHEN** 新 ACP session 创建成功
-- **THEN** 系统在 `getDataSubPath('projects')/<encodeProjectPath(project.path)>/sessions/<sessionId>.json` 写入 `{ sessionId, acpSessionId, agentId, title, turnCount, createdAt, updatedAt }`
+- **THEN** 系统在 `getDataSubPath('projects')/<encodeProjectPath(project.path)>/sessions/<sessionId>.json` 写入 `{ sessionId, acpSessionId, agentId, title, turnCount, tokenUsage, createdAt, updatedAt }`
+- **AND** `tokenUsage` 初始化为 `{ used: 0, size: 0 }`
+- **AND** `tokenUsage.cost` 初始为 `undefined`
 - **AND** `encodeProjectPath` 实现为：去掉路径开头的 `/`，将所有 `/` 替换为 `-`
 
 #### Scenario: 应用重启后读取持久化 session

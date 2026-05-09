@@ -12,6 +12,15 @@ export interface MessageMeta {
 
 export type Message = UIMessage<MessageMeta>;
 
+export interface TokenUsage {
+  used: number;
+  size: number;
+  cost?: {
+    amount: number;
+    currency: string;
+  };
+}
+
 export interface Session {
   id: string;
   projectId: string;
@@ -19,16 +28,10 @@ export interface Session {
   title: string;
   status: "running" | "ended";
   turnCount: number;
+  tokenUsage: TokenUsage;
   createdAt: Date;
   updatedAt: Date;
   messages: Message[];
-}
-
-export interface TokenUsage {
-  input: number;
-  output: number;
-  total: number;
-  estimatedCost: string;
 }
 
 export type ProjectAgent = ChatAgent;

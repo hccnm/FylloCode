@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Chat 界面定义了消息流的渲染方式以及侧边栏的展示行为。
+Chat 界面定义了消息流的渲染方式、流式事件组装边界、侧边栏展示行为，以及 Chat 主区域与相关组件的复用约束。
 
 ## Requirements
 
@@ -67,7 +67,7 @@ composable 对外暴露至少以下能力：
 - `applyChunk(chunk: MessageChunkData)` 按 chunk kind 分派：
   - `text_delta` / `tool_call_start` / `tool_call_update`：按现有 `MessageAssembler` 组装规则更新容器中的 assistant message
   - `user_message`：将 chunk 自带的 `UIMessage` 原样 push 到容器，并清空 `activeAssistantId`
-  - 其他 kind（如 `session_info_update`、`status`）：不影响消息容器，由调用方按需处理
+  - 其他 kind（如 `usage_update`、`session_info_update`、`status`）：不影响消息容器，由调用方按需处理
 - `resetActive()`：清空 `activeAssistantId` / `activeTextPartIdx`（在 `done`、`error`、切换 stage 时调用）
 
 #### Scenario: chat store 使用共享 composable

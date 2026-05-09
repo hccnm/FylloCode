@@ -87,7 +87,15 @@ describe("registerChatHandlers", () => {
     mocks.eventHandler = null;
     mocks.onReady = null;
     mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
-    mocks.loadSessionMeta.mockResolvedValue({ agentId: "claude-acp" });
+    mocks.loadSessionMeta.mockResolvedValue({
+      sessionId: "session-1",
+      agentId: "claude-acp",
+      title: "Session",
+      turnCount: 0,
+      tokenUsage: { used: 0, size: 0 },
+      createdAt: "2026-05-09T00:00:00.000Z",
+      updatedAt: "2026-05-09T00:00:00.000Z",
+    });
     const { registerChatHandlers } = await import("@main/ipc/chat");
     registerChatHandlers();
   });
@@ -154,5 +162,100 @@ describe("registerChatHandlers", () => {
         parts: [{ type: "text", text: "assistant" }],
       })
     );
+  });
+
+  it("forwards usage_update chunks and persists token usage", async () => {
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: "hello",
+      }
+    );
+
+    const sink = {
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    };
+    await mocks.onReady!(sink);
+
+    mocks.eventHandler!({
+      type: "usage_update",
+      used: 29017,
+      size: 1000000,
+      cost: { amount: 0.145305, currency: "USD" },
+    });
+
+    expect(sink.sendChunk).toHaveBeenCalledWith({
+      kind: "usage_update",
+      used: 29017,
+      size: 1000000,
+      cost: { amount: 0.145305, currency: "USD" },
+    });
+    await vi.waitFor(() => {
+      expect(mocks.saveSessionMeta).toHaveBeenCalledWith(
+        "/tmp/project",
+        expect.objectContaining({
+          tokenUsage: {
+            used: 29017,
+            size: 1000000,
+            cost: { amount: 0.145305, currency: "USD" },
+          },
+        })
+      );
+    });
+    expect(mocks.appendMessage).not.toHaveBeenCalled();
+  });
+
+  it("increments persisted token usage on done", async () => {
+    mocks.loadSessionMeta.mockResolvedValue({
+      sessionId: "session-1",
+      agentId: "claude-acp",
+      title: "Session",
+      turnCount: 0,
+      tokenUsage: {
+        used: 29017,
+        size: 1000000,
+        cost: { amount: 0.145305, currency: "USD" },
+      },
+      createdAt: "2026-05-09T00:00:00.000Z",
+      updatedAt: "2026-05-09T00:00:00.000Z",
+    });
+
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: "hello",
+      }
+    );
+
+    const sink = {
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    };
+    await mocks.onReady!(sink);
+
+    mocks.eventHandler!({ type: "done", totalTokens: 4 });
+
+    await vi.waitFor(() => {
+      expect(mocks.saveSessionMeta).toHaveBeenCalledWith(
+        "/tmp/project",
+        expect.objectContaining({
+          tokenUsage: {
+            used: 29021,
+            size: 1000000,
+            cost: { amount: 0.145305, currency: "USD" },
+          },
+        })
+      );
+      expect(sink.sendDone).toHaveBeenCalledWith(4);
+    });
   });
 });
