@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import UIMessageList from "@renderer/components/shared/UIMessageList.vue";
-import type { MessageMeta } from "@shared/types/chat";
+import type { ChatStatus, MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
 function textMessage(): UIMessage<MessageMeta> {
@@ -31,11 +31,23 @@ function toolMessage(): UIMessage<MessageMeta> {
   };
 }
 
-function mountList(messages: UIMessage<MessageMeta>[], isStreaming = false): VueWrapper {
+function mountList(messages: UIMessage<MessageMeta>[], status: ChatStatus = "ready"): VueWrapper {
+  const chatMessagesStub = {
+    props: ["messages", "status"],
+    template:
+      '<div data-test="chat-messages" :data-status="status"><div v-for="message in messages" :key="message.id"><slot name="content" :message="message" /></div></div>',
+  };
+  const chatToolStub = {
+    template: '<div data-test="tool"><slot /></div>',
+  };
+  const chatReasoningStub = {
+    template: "<div><slot /></div>",
+  };
+
   return mount(UIMessageList, {
     props: {
       messages,
-      isStreaming,
+      status,
       type: "chat",
     },
     global: {
@@ -44,17 +56,12 @@ function mountList(messages: UIMessage<MessageMeta>[], isStreaming = false): Vue
           props: ["markdown"],
           template: '<div data-test="markdown">{{ markdown }}</div>',
         },
-        UChatMessages: {
-          props: ["messages"],
-          template:
-            '<div><div v-for="message in messages" :key="message.id"><slot name="content" :message="message" /></div></div>',
-        },
-        UChatTool: {
-          template: '<div data-test="tool"><slot /></div>',
-        },
-        UChatReasoning: {
-          template: "<div><slot /></div>",
-        },
+        UChatMessages: chatMessagesStub,
+        ChatMessages: chatMessagesStub,
+        UChatTool: chatToolStub,
+        ChatTool: chatToolStub,
+        UChatReasoning: chatReasoningStub,
+        ChatReasoning: chatReasoningStub,
       },
     },
   });
@@ -73,9 +80,10 @@ describe("UIMessageList", () => {
     expect(wrapper.text()).toContain("done");
   });
 
-  it("renders empty lists and streaming indicator", () => {
-    const wrapper = mountList([], true);
+  it("renders empty lists and passes status through", () => {
+    const wrapper = mountList([], "streaming");
 
-    expect(wrapper.text()).toContain("正在执行");
+    expect(wrapper.find('[data-test="chat-messages"]').attributes("data-status")).toBe("streaming");
+    expect(wrapper.text()).toBe("");
   });
 });

@@ -22,7 +22,6 @@ function str(val: unknown): string {
 export function getToolText(part: AnyToolPart): string {
   if (!isDynamic(part)) return String(part.type);
   const input = asInput(part);
-  console.log(part);
   const description = str(input.description);
   return description ? `${part.toolName} · ${description}` : part.toolName;
 }
