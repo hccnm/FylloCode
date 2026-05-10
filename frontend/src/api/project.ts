@@ -1,5 +1,5 @@
 import type { IpcResponse } from "@shared/types/ipc";
-import type { ProjectInfo, CreateProjectForm } from "@shared/types/project";
+import type { ProjectInfo } from "@shared/types/project";
 
 export const projectApi = {
   list(): Promise<IpcResponse<ProjectInfo[]>> {
@@ -8,14 +8,6 @@ export const projectApi = {
 
   getById(id: string): Promise<IpcResponse<ProjectInfo | null>> {
     return window.api.project.getById(id);
-  },
-
-  getDefaultPath(): Promise<IpcResponse<string>> {
-    return window.api.project.getDefaultPath();
-  },
-
-  create(input: CreateProjectForm): Promise<IpcResponse<ProjectInfo>> {
-    return window.api.project.create(input);
   },
 
   update(id: string, patch: Partial<ProjectInfo>): Promise<IpcResponse<ProjectInfo>> {

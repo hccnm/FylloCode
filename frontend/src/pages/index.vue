@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import WelcomeView from "@renderer/components/WelcomeView.vue";
+import WelcomeView from "@renderer/components/welcome/WelcomeView.vue";
 import { useProjectStore } from "@renderer/stores/project";
 
 const route = useRoute();

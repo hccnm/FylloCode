@@ -16,8 +16,8 @@ const projectStore = useProjectStore();
 const hasProject = computed(() => projectStore.hasCurrentProject);
 
 const items: NavItem[] = [
-  { id: "chat", icon: "i-lucide-message-circle-more", label: "对话", to: "/chat" },
   { id: "task", icon: "i-lucide-list-checks", label: "任务", to: "/task" },
+  { id: "chat", icon: "i-lucide-message-circle-more", label: "对话", to: "/chat" },
   { id: "proposal", icon: "i-lucide-file-pen", label: "提案", to: "/proposal" },
   { id: "workflow", icon: "i-lucide-workflow", label: "工作流", to: "/workflow" },
   { id: "cron", icon: "i-lucide-calendar-days", label: "定时任务", to: "/cron" },

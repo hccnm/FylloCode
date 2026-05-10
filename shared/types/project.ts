@@ -23,12 +23,3 @@ export interface RecentProject {
   lastOpenedAt: Date;
   pathMissing?: boolean;
 }
-
-export type ProjectTemplate = "empty" | "git";
-
-export interface CreateProjectForm {
-  name: string;
-  path: string;
-  template: ProjectTemplate;
-  gitUrl?: string;
-}

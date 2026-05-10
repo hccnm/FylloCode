@@ -99,7 +99,7 @@ function getMenuItems(template: WorkflowTemplate): WorkflowMenuItem[] {
       </section>
 
       <section class="mt-3">
-        <p class="px-3 py-1 text-xs font-medium text-muted">内置</p>
+        <p class="px-3 py-1 text-xs font-medium text-muted">模板</p>
 
         <p v-if="loading" class="px-3 py-3 text-xs text-muted">加载中...</p>
         <p v-else-if="builtInTemplates.length === 0" class="px-3 py-3 text-xs text-muted">

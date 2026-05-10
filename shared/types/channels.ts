@@ -19,8 +19,6 @@ export const ChatStreamChannels = {
 export const ProjectChannels = {
   list: "project:list",
   getById: "project:getById",
-  getDefaultPath: "project:getDefaultPath",
-  create: "project:create",
   update: "project:update",
   remove: "project:remove",
   openFolder: "project:openFolder",

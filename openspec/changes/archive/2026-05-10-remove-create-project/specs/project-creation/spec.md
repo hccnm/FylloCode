@@ -1,9 +1,3 @@
-# project-creation 规范
-
-## Purpose
-
-项目创建规范定义创建项目模态框、项目信息收集、路径选择、表单校验和创建后项目上下文更新行为。**此 capability 已移除。**
-
 ## REMOVED Requirements
 
 ### Requirement: 项目创建模态框收集项目信息

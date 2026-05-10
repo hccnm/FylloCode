@@ -7,8 +7,6 @@ vi.mock("@renderer/api/project", () => ({
   projectApi: {
     list: vi.fn(),
     getById: vi.fn(),
-    getDefaultPath: vi.fn(),
-    create: vi.fn(),
     update: vi.fn(),
     remove: vi.fn(),
     openFolder: vi.fn(),

@@ -2,24 +2,18 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useProjectStore } from "@renderer/stores/project";
-import { useWelcomeStore } from "@renderer/stores/welcome";
 import { useColorMode } from "@vueuse/core";
-import CreateProjectModal from "@renderer/components/CreateProjectModal.vue";
 import type { RecentProject } from "@shared/types/project";
 
 const router = useRouter();
 const projectStore = useProjectStore();
-const welcomeStore = useWelcomeStore();
 const colorMode = useColorMode();
 
 const dropdownItems = computed(() => {
   const projectItems = projectStore.recentProjects.map((project: RecentProject) => ({
     label: project.name,
     onSelect: async () => {
-      const openedProject = await projectStore.openRecentProject(project);
-      if (openedProject) {
-        await router.push("/chat");
-      }
+      await projectStore.openRecentProject(project);
     },
   }));
 
@@ -27,9 +21,14 @@ const dropdownItems = computed(() => {
     ...projectItems,
     { type: "separator" as const },
     {
-      label: "创建新项目",
-      icon: "i-lucide-plus",
-      onSelect: () => welcomeStore.toggleCreateProjectModal(true),
+      label: "打开项目",
+      icon: "i-lucide-folder-open",
+      onSelect: async () => {
+        const project = await projectStore.openFolder();
+        if (project) {
+          await router.push("/task");
+        }
+      },
     },
   ];
 });
@@ -95,6 +94,4 @@ function toggleTheme(): void {
       </div>
     </div>
   </header>
-
-  <CreateProjectModal />
 </template>

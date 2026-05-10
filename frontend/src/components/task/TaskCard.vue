@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { timeAgo } from "@renderer/utils/time";
 import type { TaskItem } from "@shared/types/task";
 
 const props = defineProps<{
@@ -22,20 +23,6 @@ const externalUrl = computed(() => {
   return typeof meta.url === "string" && meta.url ? meta.url : null;
 });
 
-function formatRelativeTime(date: Date): string {
-  const diff = Date.now() - date.getTime();
-  const minute = 60 * 1000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
-
-  if (diff < minute) return "刚刚";
-  if (diff < hour) return `${Math.max(1, Math.floor(diff / minute))} 分钟前`;
-  if (diff < day) return `${Math.max(1, Math.floor(diff / hour))} 小时前`;
-  if (diff < 30 * day) return `${Math.max(1, Math.floor(diff / day))} 天前`;
-
-  return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric" }).format(date);
-}
-
 function handleDelete(): void {
   showDeleteConfirm.value = false;
   emit("delete", props.task);
@@ -51,7 +38,7 @@ function handleDelete(): void {
         {{ task.title }}
       </h3>
       <span class="text-xs text-muted shrink-0">
-        {{ formatRelativeTime(task.createdAt) }}
+        {{ timeAgo(task.createdAt) }}
       </span>
     </div>
 

@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { useToast } from "@nuxt/ui/composables";
 import { projectApi } from "@renderer/api/project";
 import { useSessionStore } from "./session";
-import type { CreateProjectForm, ProjectInfo, RecentProject } from "@shared/types/project";
+import type { ProjectInfo, RecentProject } from "@shared/types/project";
 
 function normalizeProject(project: ProjectInfo): ProjectInfo {
   return {
@@ -35,9 +35,7 @@ export const useProjectStore = defineStore("project", () => {
   const projects = ref<ProjectInfo[]>([]);
   const currentProject = ref<ProjectInfo | null>(null);
   const isLoaded = ref(false);
-  const defaultProjectPath = ref("");
   let loadPromise: Promise<void> | null = null;
-  let defaultPathPromise: Promise<string> | null = null;
   const hasCurrentProject = computed(() => currentProject.value !== null);
   const recentProjects = computed<RecentProject[]>(() =>
     sortByLastOpened(projects.value)
@@ -125,32 +123,6 @@ export const useProjectStore = defineStore("project", () => {
     await loadProjects();
   }
 
-  async function ensureDefaultPath(): Promise<string> {
-    if (defaultProjectPath.value) {
-      return defaultProjectPath.value;
-    }
-
-    if (defaultPathPromise) {
-      return defaultPathPromise;
-    }
-
-    defaultPathPromise = (async () => {
-      const result = await projectApi.getDefaultPath();
-      if (!result.ok) {
-        throw new Error(result.error.message);
-      }
-
-      defaultProjectPath.value = result.data;
-      return defaultProjectPath.value;
-    })();
-
-    try {
-      return await defaultPathPromise;
-    } finally {
-      defaultPathPromise = null;
-    }
-  }
-
   async function openFolder(): Promise<ProjectInfo | null> {
     const result = await projectApi.openFolder();
     if (!result.ok) {
@@ -168,15 +140,6 @@ export const useProjectStore = defineStore("project", () => {
     }
 
     return await activateProject(project);
-  }
-
-  async function createProject(form: CreateProjectForm): Promise<ProjectInfo> {
-    const result = await projectApi.create(form);
-    if (!result.ok) {
-      throw new Error(result.error.message);
-    }
-
-    return await activateProject(result.data);
   }
 
   async function openRecentProject(project: RecentProject): Promise<ProjectInfo | null> {
@@ -249,14 +212,11 @@ export const useProjectStore = defineStore("project", () => {
     currentProject,
     hasCurrentProject,
     isLoaded,
-    defaultProjectPath,
     setCurrentProject,
     clearCurrentProject,
     loadProjects,
     ensureLoaded,
-    ensureDefaultPath,
     openFolder,
-    createProject,
     openRecentProject,
     switchProject,
     removeRecentProject,

@@ -1,7 +1,7 @@
 import { homedir } from "os";
 import { join } from "path";
 import { promises as fs } from "fs";
-import type { CreateProjectForm, ProjectInfo, ProjectMeta } from "@shared/types/project";
+import type { ProjectInfo, ProjectMeta } from "@shared/types/project";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import {
   createProjectMeta,
@@ -48,29 +48,6 @@ export async function getProject(id: string): Promise<ProjectInfo | null> {
   const meta = await loadProject(id);
   if (!meta) return null;
   return toProjectInfoWithPathStatus(meta);
-}
-
-export function getDefaultProjectPath(): string {
-  return homedir();
-}
-
-export async function createProject(form: CreateProjectForm): Promise<ProjectInfo> {
-  const basePath = expandHomePath(form.path);
-  const projectPath = join(basePath, form.name);
-  const id = encodeProjectPath(projectPath);
-  const existing = await loadProject(id);
-
-  await fs.mkdir(projectPath, { recursive: true });
-
-  const meta = createProjectMeta({
-    id,
-    name: form.name,
-    path: projectPath,
-    createdAt: existing ? new Date(existing.createdAt) : undefined,
-    lastOpenedAt: new Date(),
-  });
-  await saveProject(meta);
-  return toProjectInfo(meta);
 }
 
 export async function updateProject(input: {

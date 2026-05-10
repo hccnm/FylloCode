@@ -28,15 +28,15 @@ The system SHALL display the FylloCode logo, product name, and tagline centered 
 
 ### Requirement: Welcome page provides action buttons
 
-The system SHALL display two side-by-side action buttons below the brand identity.
+The system SHALL display a single "Open Folder" action button below the brand identity.
 
-#### Scenario: Action buttons are visible
+#### Scenario: Action button is visible
 
 - **WHEN** the Welcome content is displayed
-- **THEN** an "Open Folder" button and a "Create Project" button are shown side by side
+- **THEN** an "Open Folder" button is shown
 - **AND** the "Open Folder" button is styled as a primary solid button
-- **AND** the "Create Project" button is styled as a secondary outlined button
-- **AND** each button has an icon on the left side
+- **AND** the button has an icon on the left side
+- **AND** no "Create Project" button is displayed
 
 #### Scenario: Open Folder button is clicked
 
@@ -44,11 +44,6 @@ The system SHALL display two side-by-side action buttons below the brand identit
 - **THEN** a directory selection dialog is invoked
 - **AND** upon selection, the current project context is updated
 - **AND** the system enters `/workspace`
-
-#### Scenario: Create Project button is clicked
-
-- **WHEN** user clicks the "Create Project" button
-- **THEN** a project creation modal is opened
 
 ### Requirement: Welcome page handles empty recent projects state
 
@@ -61,6 +56,18 @@ The system SHALL display an empty state message when no recent projects exist.
 - **AND** the recent projects list is not displayed
 
 ## REMOVED Requirements
+
+### Requirement: Welcome page shows two side-by-side action buttons
+
+**Reason**: The "Create Project" functionality is being removed from the application.
+
+**Migration**: Users should use the "Open Folder" button to open an existing directory instead.
+
+### Requirement: Create Project button opens modal
+
+**Reason**: The "Create Project" functionality is being removed from the application.
+
+**Migration**: N/A — the Create Project modal is being deleted entirely.
 
 ### Requirement: Welcome page is standalone route
 

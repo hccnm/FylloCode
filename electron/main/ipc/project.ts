@@ -1,7 +1,6 @@
 import { ipcMain, dialog } from "electron";
 import { ProjectChannels } from "@shared/types/channels";
 import {
-  createProjectInputSchema,
   getByIdInputSchema,
   removeProjectInputSchema,
   updateProjectInputSchema,
@@ -10,8 +9,6 @@ import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
 import {
   adoptExistingFolder,
-  createProject,
-  getDefaultProjectPath,
   getProject,
   listProjects,
   removeProject,
@@ -25,17 +22,6 @@ export function registerProjectHandlers(): void {
     wrapHandler(async () => {
       const { id } = validate(getByIdInputSchema, input);
       return getProject(id);
-    })
-  );
-
-  ipcMain.handle(ProjectChannels.getDefaultPath, () =>
-    wrapHandler(async () => getDefaultProjectPath())
-  );
-
-  ipcMain.handle(ProjectChannels.create, (_event, input: unknown) =>
-    wrapHandler(async () => {
-      const form = validate(createProjectInputSchema, input);
-      return createProject(form);
     })
   );
 
