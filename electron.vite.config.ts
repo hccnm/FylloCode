@@ -71,6 +71,11 @@ export default defineConfig(({ command }) => ({
             secondary: "cyan",
             neutral: "slate",
           },
+          modal: {
+            slots: {
+              footer: "justify-end gap-2",
+            },
+          },
         },
       }),
     ],

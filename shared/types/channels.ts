@@ -42,6 +42,13 @@ export const ProposalChannels = {
   loadArchiveMessages: "proposal:loadArchiveMessages",
 } as const;
 
+export const TaskChannels = {
+  list: "task:list",
+  create: "task:create",
+  update: "task:update",
+  delete: "task:delete",
+} as const;
+
 export const NetChannels = {
   fetch: "net:fetch",
   fetchImage: "net:fetchImage",

@@ -10,6 +10,7 @@ import { settingsApi } from "./api/settings";
 import { windowApi } from "./api/window";
 import { netApi } from "./api/net";
 import { workflowApi } from "./api/workflow";
+import { taskApi } from "./api/task";
 
 const api = {
   chat: chatApi,
@@ -21,6 +22,7 @@ const api = {
   window: windowApi,
   net: netApi,
   workflow: workflowApi,
+  task: taskApi,
 };
 
 if (process.contextIsolated) {

@@ -21,6 +21,11 @@ function buildUserMessage(sessionId: string, content: string): Message {
 }
 
 function buildFallbackSessionTitle(content: string): string {
+  const taskTitle = content.match(/^\*\*标题\*\*:\s*(.+)$/m)?.[1]?.trim();
+  if (taskTitle) {
+    return Array.from(taskTitle).slice(0, FALLBACK_SESSION_TITLE_MAX_LENGTH).join("");
+  }
+
   const normalized = content.trim().replace(/\s+/g, " ");
   if (!normalized) {
     return DEFAULT_SESSION_TITLE;

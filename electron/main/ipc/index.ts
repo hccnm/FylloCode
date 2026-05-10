@@ -8,6 +8,7 @@ import { registerSettingsHandlers } from "./settings";
 import { registerWindowHandlers } from "./window";
 import { registerNetHandlers } from "./net";
 import { registerWorkflowHandlers } from "./workflow";
+import { registerTaskHandlers } from "./task";
 
 export function registerAllHandlers(): void {
   registerChatHandlers();
@@ -15,6 +16,7 @@ export function registerAllHandlers(): void {
   registerProposalHandlers();
   registerProposalApplyHandlers();
   registerWorkflowHandlers();
+  registerTaskHandlers();
   registerIntegrationHandlers();
   registerAcpAgentHandlers();
   registerSettingsHandlers();

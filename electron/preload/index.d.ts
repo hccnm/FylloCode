@@ -8,6 +8,7 @@ import type { settingsApi } from "./api/settings";
 import type { windowApi } from "./api/window";
 import type { netApi } from "./api/net";
 import type { workflowApi } from "./api/workflow";
+import type { taskApi } from "./api/task";
 
 export interface AppApi {
   chat: typeof chatApi;
@@ -19,6 +20,7 @@ export interface AppApi {
   window: typeof windowApi;
   net: typeof netApi;
   workflow: typeof workflowApi;
+  task: typeof taskApi;
 }
 
 declare global {

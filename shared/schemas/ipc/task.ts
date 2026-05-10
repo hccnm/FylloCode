@@ -1,0 +1,46 @@
+import { z } from "zod";
+
+export const taskSourceSchema = z.enum(["local", "yunxiao", "github"]);
+export const taskStatusSchema = z.enum(["open", "closed"]);
+
+const taskLabelSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  color: z.string().optional(),
+});
+
+const taskUserSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  avatarUrl: z.string().optional(),
+});
+
+export const listTasksInputSchema = z.object({
+  projectId: z.string().min(1),
+  source: taskSourceSchema.optional(),
+});
+
+export const createTaskInputSchema = z.object({
+  projectId: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  proposalId: z.string().optional(),
+});
+
+export const updateTaskInputSchema = z.object({
+  projectId: z.string().min(1),
+  taskId: z.string().min(1),
+  patch: z.object({
+    title: z.string().min(1).optional(),
+    description: z.string().optional(),
+    status: taskStatusSchema.optional(),
+    labels: z.array(taskLabelSchema).optional(),
+    assignee: taskUserSchema.optional(),
+    proposalId: z.string().optional(),
+  }),
+});
+
+export const deleteTaskInputSchema = z.object({
+  projectId: z.string().min(1),
+  taskId: z.string().min(1),
+});
