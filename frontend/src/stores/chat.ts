@@ -38,6 +38,7 @@ export const useChatStore = defineStore("chat", () => {
   const toast = useToast();
   const chatStatus = ref<ChatStatus>("ready");
   const mode = ref<ModeType>("manual");
+  const cancelFn = ref<(() => void) | null>(null);
 
   function queueUserMessage(
     session: Session,
@@ -71,50 +72,58 @@ export const useChatStore = defineStore("chat", () => {
       sessionId: activeSession.id,
     });
 
-    chatApi.streamMessage(activeSession.id, projectId, activeSession.agentId, prompt, {
-      onChunk(data) {
-        if (chatStatus.value === "submitted") {
-          chatStatus.value = "streaming";
-        }
+    cancelFn.value = chatApi.streamMessage(
+      activeSession.id,
+      projectId,
+      activeSession.agentId,
+      prompt,
+      {
+        onChunk(data) {
+          if (chatStatus.value === "submitted") {
+            chatStatus.value = "streaming";
+          }
 
-        if (data.kind === "session_info_update") {
-          activeSession.title = data.title;
+          if (data.kind === "session_info_update") {
+            activeSession.title = data.title;
+            activeSession.updatedAt = new Date();
+            sessionStore.sortSessions();
+            return;
+          }
+
+          if (data.kind === "usage_update") {
+            activeSession.tokenUsage = {
+              used: data.used,
+              size: data.size,
+              cost: data.cost,
+            };
+            return;
+          }
+
+          assembler.applyChunk(data);
+        },
+        onDone(done) {
+          cancelFn.value = null;
+          assembler.resetActive();
+          chatStatus.value = "ready";
+          activeSession.tokenUsage = {
+            ...activeSession.tokenUsage,
+            used: activeSession.tokenUsage.used + done.totalTokens,
+          };
+          activeSession.updatedAt = new Date();
+          activeSession.status = "ended";
+          sessionStore.sortSessions();
+        },
+        onError(err) {
+          cancelFn.value = null;
+          assembler.resetActive();
+          chatStatus.value = "error";
+          activeSession.status = "ended";
           activeSession.updatedAt = new Date();
           sessionStore.sortSessions();
-          return;
-        }
-
-        if (data.kind === "usage_update") {
-          activeSession.tokenUsage = {
-            used: data.used,
-            size: data.size,
-            cost: data.cost,
-          };
-          return;
-        }
-
-        assembler.applyChunk(data);
-      },
-      onDone(done) {
-        assembler.resetActive();
-        chatStatus.value = "ready";
-        activeSession.tokenUsage = {
-          ...activeSession.tokenUsage,
-          used: activeSession.tokenUsage.used + done.totalTokens,
-        };
-        activeSession.updatedAt = new Date();
-        activeSession.status = "ended";
-        sessionStore.sortSessions();
-      },
-      onError(err) {
-        assembler.resetActive();
-        chatStatus.value = "error";
-        activeSession.status = "ended";
-        activeSession.updatedAt = new Date();
-        sessionStore.sortSessions();
-        console.error("Stream error:", err.code, err.message);
-      },
-    });
+          console.error("Stream error:", err.code, err.message);
+        },
+      }
+    );
   }
 
   async function sendMessage(content: string): Promise<void> {
@@ -176,10 +185,15 @@ export const useChatStore = defineStore("chat", () => {
     mode.value = newMode;
   }
 
+  function cancelStream(): void {
+    cancelFn.value?.();
+  }
+
   return {
     chatStatus,
     mode,
     sendMessage,
     setMode,
+    cancelStream,
   };
 });

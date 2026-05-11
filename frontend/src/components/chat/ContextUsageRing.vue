@@ -23,11 +23,11 @@ const tooltipRows = computed(() => {
   const rows = [
     {
       label: "Context",
-      value: `${formatNumber(props.used)} / ${formatNumber(props.size)} tokens (${percentLabel.value})`,
+      value: `${formatTokens(props.used)} / ${formatTokens(props.size)} tokens (${percentLabel.value})`,
     },
     {
       label: "Remaining",
-      value: `${formatNumber(remaining.value)} tokens`,
+      value: `${formatTokens(remaining.value)} tokens`,
     },
   ];
 
@@ -56,8 +56,13 @@ const tooltipText = computed(() =>
   tooltipRows.value.map((row) => `${row.label}: ${row.value}`).join("\n")
 );
 
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat().format(value);
+function formatTokens(value: number): string {
+  if (value >= 1_000_000) {
+    const m = value / 1_000_000;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}m`;
+  }
+  const k = value / 1000;
+  return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
 }
 
 function formatCost(amount: number, currency: string): string {

@@ -72,10 +72,15 @@ async function handleSubmit(): Promise<void> {
                 :size="activeSession.tokenUsage.size"
                 :cost="activeSession.tokenUsage.cost"
               />
-              <ChatAgentSelect v-model="agent" :disabled="isAgentLocked" />
+              <ChatAgentSelect v-if="!isAgentLocked" v-model="agent" />
             </div>
 
-            <UChatPromptSubmit :status="chatStatus" color="neutral" size="sm" />
+            <UChatPromptSubmit
+              :status="chatStatus"
+              color="neutral"
+              size="sm"
+              @stop="store.cancelStream()"
+            />
           </template>
         </UChatPrompt>
       </div>

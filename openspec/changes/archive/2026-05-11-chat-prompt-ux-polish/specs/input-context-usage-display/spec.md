@@ -1,10 +1,4 @@
-# input-context-usage-display Specification
-
-## Purpose
-
-在 Chat 输入框区域显示当前 session 的 context 消耗，帮助用户判断何时需要开启新 session。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 输入框区域显示当前 session 的 context 消耗
 
@@ -17,11 +11,11 @@
 - **AND** 环形进度表示当前 session 的 `tokenUsage.used / tokenUsage.size` 百分比
 - **AND** 进度颜色根据百分比分级显示：低于 50% 为 `text-success`，50% 至 80% 为 `text-warning`，高于 80% 为 `text-error`
 
-#### Scenario: Hover 显示 context 明细（k/m 单位）
+#### Scenario: Hover 显示 context 明细（k 单位）
 
 - **WHEN** 用户 hover context 消耗环形进度条
-- **THEN** 系统通过 tooltip 显示 `Context: used / size tokens (percent%)`，其中 used 和 size 以 k 或 m 为单位（≥ 1,000,000 显示为 m，否则显示为 k；整数时不显示小数，非整数时保留一位小数，如 `12.3k / 128k tokens`、`1.5m / 2m tokens`）
-- **AND** tooltip 显示 `Remaining: size - used tokens`，remaining 同样以 k/m 为单位
+- **THEN** 系统通过 tooltip 显示 `Context: used / size tokens (percent%)`，其中 used 和 size 以 k 为单位（保留一位小数，如 `12.3k / 128.0k tokens`）
+- **AND** tooltip 显示 `Remaining: remaining tokens`，remaining 同样以 k 为单位
 - **AND** 当当前 usage update 包含 `cost` 时，tooltip 显示 `Cost: amount currency`（货币格式不变）
 
 #### Scenario: 草稿态隐藏 token 用量
