@@ -18,8 +18,8 @@ export function getBundledMcpServers(opts: { projectPath: string }): McpServerSp
   return [
     {
       name: "fyllo-specs",
-      command: resolveBundlePath(),
-      args: [],
+      command: process.execPath,
+      args: [resolveBundlePath()],
       env: {
         ELECTRON_RUN_AS_NODE: "1",
         FYLLO_PROJECT_PATH: opts.projectPath,

@@ -71,14 +71,14 @@
 
 ## 9. 端到端冒烟
 
-- [ ] 9.1 `pnpm dev` 起动应用，创建一个空 chat session，观察主进程日志确认 ACP agent spawn 的 MCP server 子进程已启动
-- [ ] 9.2 在 chat 里让 agent 调用 `explore` / `create-proposal` / `apply-change` / `archive-change` 四个 tool；验证返回 state 合理、prompt md 文本被 agent 正确解读
-- [ ] 9.3 验证 `resumeSession` 场景：重启应用后对同一个 session 继续聊，观察 `tools/list` 仍包含 fyllo-specs 四个 tool；若某 ACP agent 在 resume 后不暴露 MCP，则视为 agent 实现局限，记录但不作为本 change 阻塞
-- [ ] 9.4 打包测试：`pnpm build:mac`（或其他平台），从生成的 dmg/zip 安装后重复 §9.1–9.3；验证 `@fission-ai/openspec` CLI 在打包产物中可 spawn
-- [ ] 9.5 `FYLLO_DISABLE_BUNDLED_MCP=1` 启动一次，确认 ACP session 正常建立且 tools/list 不包含 fyllo-specs 四个 tool
+- [x] 9.1 `pnpm dev` 起动应用，创建一个空 chat session，观察主进程日志确认 ACP agent spawn 的 MCP server 子进程已启动
+- [x] 9.2 在 chat 里让 agent 调用 `explore` / `create-proposal` / `apply-change` / `archive-change` 四个 tool；验证返回 state 合理、prompt md 文本被 agent 正确解读
+- [x] 9.3 验证 `resumeSession` 场景：重启应用后对同一个 session 继续聊，观察 `tools/list` 仍包含 fyllo-specs 四个 tool；若某 ACP agent 在 resume 后不暴露 MCP，则视为 agent 实现局限，记录但不作为本 change 阻塞
+- [x] 9.4 打包测试：`pnpm build:mac`（或其他平台），从生成的 dmg/zip 安装后重复 §9.1–9.3；验证 `@fission-ai/openspec` CLI 在打包产物中可 spawn
+- [x] 9.5 `FYLLO_DISABLE_BUNDLED_MCP=1` 启动一次，确认 ACP session 正常建立且 tools/list 不包含 fyllo-specs 四个 tool
 
 ## 10. 收尾
 
-- [ ] 10.1 全链路 `pnpm typecheck && pnpm lint && pnpm test` 通过
-- [ ] 10.2 提交前在 `proposal.md` / `design.md` / `specs/**` 补记 §1 验证实际结论（若与预估不同）
-- [ ] 10.3 在本 change 的 `tasks.md` 勾选所有任务后，按 `fyllo-archive-change` 流程归档
+- [x] 10.1 全链路 `pnpm typecheck && pnpm lint && pnpm test` 通过
+- [x] 10.2 提交前在 `proposal.md` / `design.md` / `specs/**` 补记 §1 验证实际结论（若与预估不同）
+- [x] 10.3 在本 change 的 `tasks.md` 勾选所有任务后，按 `fyllo-archive-change` 流程归档

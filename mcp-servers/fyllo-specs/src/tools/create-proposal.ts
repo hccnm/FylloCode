@@ -1,3 +1,4 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { wrapState } from "../utils/state";
 import { loadPrompt } from "../utils/load-prompt";
@@ -5,9 +6,17 @@ import { createChange, computeStatus, getInstructions } from "../openspec-runtim
 import { resolveProjectRoot } from "../utils/project-root";
 import { invalidParams, invalidRequest } from "../utils/mcp-errors";
 
-export const createProposalInputSchema = z.object({
-  name: z.string().optional(),
-  description: z.string().optional(),
+const createProposalInputSchema = z.object({
+  name: z
+    .string()
+    .optional()
+    .describe(
+      "Kebab-case name for the change (e.g. 'add-user-auth'). Omit to inspect without creating."
+    ),
+  description: z
+    .string()
+    .optional()
+    .describe("Brief description of what the change is about. Used to guide artifact generation."),
 });
 
 export async function createProposalTool(
@@ -42,4 +51,20 @@ export async function createProposalTool(
     instruction: artifacts[0]?.instruction ?? null,
     nextArtifact: artifacts.find((artifact) => artifact.status !== "done")?.id ?? null,
   });
+}
+
+export function registerCreateProposalTool(server: McpServer): void {
+  server.registerTool(
+    "create-proposal",
+    {
+      description:
+        "Propose a new change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation.",
+      inputSchema: createProposalInputSchema,
+    },
+    async (input) => {
+      return {
+        content: [{ type: "text" as const, text: await createProposalTool(input) }],
+      };
+    }
+  );
 }

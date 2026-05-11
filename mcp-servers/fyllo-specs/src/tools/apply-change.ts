@@ -1,3 +1,4 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { existsSync } from "fs";
 import { join } from "path";
 import { z } from "zod";
@@ -8,7 +9,14 @@ import { listChanges, computeStatus } from "../openspec-runtime";
 import { loadApplyState } from "../openspec-runtime/tasks";
 import { invalidRequest } from "../utils/mcp-errors";
 
-export const applyChangeInputSchema = z.object({ changeName: z.string().optional() });
+const applyChangeInputSchema = z.object({
+  changeName: z
+    .string()
+    .optional()
+    .describe(
+      "Name of the change to implement. Omit to auto-select when only one active change exists."
+    ),
+});
 
 function changeDir(projectRoot: string, name: string): string {
   return join(projectRoot, "openspec", "changes", name);
@@ -51,4 +59,20 @@ export async function applyChangeTool(
     changeName,
     applyState,
   });
+}
+
+export function registerApplyChangeTool(server: McpServer): void {
+  server.registerTool(
+    "apply-change",
+    {
+      description:
+        "Implement tasks from an OpenSpec change. Use when the user wants to start implementing, continue implementation, or work through tasks.",
+      inputSchema: applyChangeInputSchema,
+    },
+    async (input) => {
+      return {
+        content: [{ type: "text" as const, text: await applyChangeTool(input) }],
+      };
+    }
+  );
 }

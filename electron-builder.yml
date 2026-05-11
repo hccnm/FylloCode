@@ -8,6 +8,7 @@ files:
   - "resources/**"
 asarUnpack:
   - resources/**
+  - node_modules/@fission-ai/openspec/**
 extraResources:
   - from: out/mcp-servers
     to: mcp-servers

@@ -23,4 +23,13 @@ await build({
     "@shared": join(repoRoot, "shared"),
     "@main": join(repoRoot, "electron", "main"),
   },
+  // Some ESM deps (e.g. fdir via tinyglobby) use `createRequire(import.meta.url)`.
+  // esbuild rewrites `import.meta` to `{}` in CJS output, which breaks createRequire.
+  // Provide a valid file URL so those call sites keep working.
+  banner: {
+    js: "const __esbuild_import_meta_url = require('url').pathToFileURL(__filename).href;",
+  },
+  define: {
+    "import.meta.url": "__esbuild_import_meta_url",
+  },
 });

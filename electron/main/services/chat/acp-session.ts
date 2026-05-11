@@ -43,7 +43,6 @@ export class AcpSession extends EventEmitter {
       ...spec,
       env: toAcpMcpServerEnv(spec.env),
     }));
-    logger.info("mcpServers", mcpServers);
 
     // Load persisted acpSessionId
     const meta = await loadSessionMeta(projectPath, fylloSessionId);
