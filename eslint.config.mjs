@@ -152,6 +152,80 @@ export default defineConfig(
       ],
     },
   },
+  {
+    files: ["**/*.{ts,mts,tsx,vue}"],
+    ignores: ["electron/main/**/*.ts", "electron/main/**/*.mts", "electron/main/**/*.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@main/*", "@main/*/**"],
+              message: "Only electron/main/** may import @main/*",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["mcp-servers/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["electron", "electron/*"],
+              message: "mcp-servers/ must not depend on Electron APIs",
+            },
+            {
+              group: ["@main/*", "@main/*/**"],
+              message: "mcp-servers/ must not depend on electron/main aliases",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["mcp-servers/fyllo-specs/src/tools/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["child_process", "node:child_process"],
+              message: "tool implementations must not spawn processes directly",
+            },
+            {
+              group: ["@fission-ai/openspec", "@fission-ai/openspec/*"],
+              message:
+                "tools must go through openspec-runtime instead of importing openspec directly",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["mcp-servers/fyllo-specs/src/openspec-runtime/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@fission-ai/openspec", "@fission-ai/openspec/*"],
+              message: "openspec-runtime must consume the CLI, not openspec internals",
+            },
+          ],
+        },
+      ],
+    },
+  },
 
   eslintConfigPrettier
 );

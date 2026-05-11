@@ -28,6 +28,7 @@ FylloCode/
 │   ├── main/           # 主进程，处理 窗口创建、生命周期、IPC 监听
 │   └── preload/        # 预加载脚本，包含 contextBridge 暴露 API、接口类型声明
 ├── frontend/           # 前端，vite + vue3
+├── mcp-servers/        # 内置 MCP server
 ├── build/              # 构建资源（图标、entitlements）
 ├── resources/          # 应用资源
 ├── vitest.config.mts   # Vitest 配置（ESM，.mts 后缀）

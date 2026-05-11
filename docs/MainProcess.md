@@ -177,21 +177,29 @@ registerDisposable({
 
 ## 路径 / ID / 默认值单点化
 
-| 需求                   | 使用                                   | 位置                                |
-| ---------------------- | -------------------------------------- | ----------------------------------- |
-| 项目根目录             | `projectDir(projectPath)`              | `@main/infra/storage/project-paths` |
-| 会话目录               | `sessionsDir(projectPath)`             | 同上                                |
-| Apply run 目录         | `applyRunsDir(projectPath)`            | 同上                                |
-| 工作流目录             | `workflowsDir(projectPath)`            | 同上                                |
-| 应用随附资源根目录     | `getResourcesPath()`                   | `@main/infra/paths`                 |
-| 新建 session id        | `newSessionId()`                       | `@main/infra/ids`                   |
-| 新建 apply run id      | `newRunId()`                           | 同上                                |
-| Stage 级 Fyllo 会话 id | `newStageFylloSessionId(runId, index)` | 同上                                |
-| 默认 ACP agent         | `DEFAULT_ACP_AGENT_ID`                 | `@shared/constants/agents`          |
+| 需求                   | 使用                                    | 位置                                  |
+| ---------------------- | --------------------------------------- | ------------------------------------- |
+| 项目根目录             | `projectDir(projectPath)`               | `@main/infra/storage/project-paths`   |
+| 会话目录               | `sessionsDir(projectPath)`              | 同上                                  |
+| Apply run 目录         | `applyRunsDir(projectPath)`             | 同上                                  |
+| 工作流目录             | `workflowsDir(projectPath)`             | 同上                                  |
+| 应用随附资源根目录     | `getResourcesPath()`                    | `@main/infra/paths`                   |
+| 内置 MCP server 描述符 | `getBundledMcpServers({ projectPath })` | `@main/infra/mcp/bundled-mcp-servers` |
+| 新建 session id        | `newSessionId()`                        | `@main/infra/ids`                     |
+| 新建 apply run id      | `newRunId()`                            | 同上                                  |
+| Stage 级 Fyllo 会话 id | `newStageFylloSessionId(runId, index)`  | 同上                                  |
+| 默认 ACP agent         | `DEFAULT_ACP_AGENT_ID`                  | `@shared/constants/agents`            |
 
 **禁止** 在 service / ipc 层直接 `join + encodeProjectPath`、`` `session-${Date.now()}` ``、硬编码 `"claude-acp"`。
 
 随应用分发的根目录 `resources/` 必须通过 `@main/infra/paths` 的 `getResourcesPath()` 获取。业务模块只在资源根目录下拼接自己的子路径（例如 workflow 使用 `workflows/built-in`），不得直接依赖 `process.resourcesPath`、`app.getAppPath()`、`app.asar.unpacked` 等打包布局细节。
+
+## 新增一个内置 MCP server 的完整流程
+
+1. 在 `mcp-servers/<name>/` 下添加源码、prompt、runtime 与测试。
+2. 通过主进程 infra 模块统一生成 ACP `mcpServers` 描述符，不在 service 层手写路径或 env。
+3. 开发环境指向 `out/mcp-servers/<name>/index.js`，生产环境指向 `resources/mcp-servers/<name>/index.js`。
+4. `services/chat/acp-session.ts` 在 `newSession` 与 `resumeSession` 两个入口都注入相同的 `mcpServers`。
 
 ## 日志
 

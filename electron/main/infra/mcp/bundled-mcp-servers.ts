@@ -1,0 +1,34 @@
+import { join } from "path";
+import { is } from "@electron-toolkit/utils";
+import { getResourcesPath } from "@main/infra/paths";
+import type { McpEnvVariable, McpServerSpec } from "@shared/types/mcp";
+
+function resolveBundlePath(): string {
+  if (is.dev) {
+    return join(process.cwd(), "out", "mcp-servers", "fyllo-specs", "index.js");
+  }
+  return join(getResourcesPath(), "mcp-servers", "fyllo-specs", "index.js");
+}
+
+export function getBundledMcpServers(opts: { projectPath: string }): McpServerSpec[] {
+  if (process.env.FYLLO_DISABLE_BUNDLED_MCP === "1") {
+    return [];
+  }
+
+  return [
+    {
+      name: "fyllo-specs",
+      command: resolveBundlePath(),
+      args: [],
+      env: {
+        ELECTRON_RUN_AS_NODE: "1",
+        FYLLO_PROJECT_PATH: opts.projectPath,
+        FYLLO_MCP_TELEMETRY: "0",
+      },
+    },
+  ];
+}
+
+export function toAcpMcpServerEnv(env: Record<string, string>): McpEnvVariable[] {
+  return Object.entries(env).map(([name, value]) => ({ name, value }));
+}

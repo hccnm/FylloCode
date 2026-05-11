@@ -2,9 +2,25 @@ import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import ui from "@nuxt/ui/vite";
 import { resolve } from "path";
+import { readFileSync } from "fs";
+
+const mdRawForTests = {
+  name: "md-raw-for-tests",
+  enforce: "pre" as const,
+  resolveId(id: string) {
+    return id.endsWith(".md") ? `${id}?raw` : null;
+  },
+  load(id: string) {
+    if (!id.endsWith(".md?raw")) {
+      return null;
+    }
+    return `export default ${JSON.stringify(readFileSync(id.slice(0, -4), "utf8"))};`;
+  },
+};
 
 export default defineConfig({
   plugins: [
+    mdRawForTests,
     vue(),
     ui({
       autoImport: {
@@ -32,6 +48,7 @@ export default defineConfig({
           globals: true,
           include: [
             "electron/main/__tests__/**/*.{test,spec}.ts",
+            "mcp-servers/fyllo-specs/__tests__/**/*.{test,spec}.ts",
             "shared/__tests__/**/*.{test,spec}.ts",
           ],
           setupFiles: ["electron/main/__tests__/setup.ts"],
@@ -46,7 +63,7 @@ export default defineConfig({
     coverage: {
       reporter: ["text", "html"],
       reportsDirectory: "./coverage",
-      include: ["frontend/src", "electron/main", "shared"],
+      include: ["frontend/src", "electron/main", "mcp-servers/fyllo-specs", "shared"],
       exclude: [
         "frontend/src/**/*.spec.ts",
         "frontend/src/**/*.test.ts",

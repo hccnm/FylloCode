@@ -5,6 +5,7 @@ import { mapSessionUpdate } from "./acp-mapper";
 import { getOrStartProcess } from "@main/infra/process/acp-process-pool";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import logger from "@main/infra/logger";
+import { getBundledMcpServers, toAcpMcpServerEnv } from "@main/infra/mcp/bundled-mcp-servers";
 
 export interface AcpSessionOpts {
   fylloSessionId: string;
@@ -38,6 +39,11 @@ export class AcpSession extends EventEmitter {
     }
 
     const { connection, sessionHandlers } = entry;
+    const mcpServers = getBundledMcpServers({ projectPath }).map((spec) => ({
+      ...spec,
+      env: toAcpMcpServerEnv(spec.env),
+    }));
+    logger.info("mcpServers", mcpServers);
 
     // Load persisted acpSessionId
     const meta = await loadSessionMeta(projectPath, fylloSessionId);
@@ -45,7 +51,7 @@ export class AcpSession extends EventEmitter {
 
     if (acpSessionId) {
       try {
-        await connection.resumeSession({ sessionId: acpSessionId, cwd });
+        await connection.resumeSession({ sessionId: acpSessionId, cwd, mcpServers });
       } catch {
         logger.warn(
           `[acp-session] resumeSession failed for ${acpSessionId}, falling back to newSession`
@@ -55,7 +61,7 @@ export class AcpSession extends EventEmitter {
     }
 
     if (!acpSessionId) {
-      const res = await connection.newSession({ cwd, mcpServers: [] });
+      const res = await connection.newSession({ cwd, mcpServers });
       acpSessionId = res.sessionId;
     }
 

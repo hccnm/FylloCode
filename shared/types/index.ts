@@ -5,6 +5,7 @@ export * from "./chat-agent";
 export * from "./integration";
 export * from "./ipc";
 export * from "./project";
+export * from "./mcp";
 export * from "./proposal";
 export * from "./settings";
 export * from "./task";

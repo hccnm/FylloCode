@@ -32,6 +32,7 @@ FylloCode/
 │   ├── main/           # 主进程（详见 MainProcess.md）
 │   └── preload/        # 预加载：contextBridge 暴露 window.api / window.electron
 ├── frontend/           # 渲染进程（详见 RendererProcess.md）
+├── mcp-servers/        # 内置 MCP server 源码与测试
 ├── shared/             # 跨进程共享：types / constants / schemas / errors
 ├── resources/          # 应用随附资源（图标、内置 workflow 模板等）
 ├── build/              # 构建资源（图标、entitlements）
@@ -103,6 +104,8 @@ FylloCode/
 项目作用域路径工厂见 `electron/main/infra/storage/project-paths.ts`：`projectDir` / `sessionsDir` / `applyRunsDir` / `workflowsDir`。**禁止** 在 service / ipc 层直接 `join + encodeProjectPath`。
 
 随应用分发的根目录 `resources/` 内容也通过 `electron/main/infra/paths/index.ts` 获取。生产环境不得在 service / ipc 层直接拼接 `process.resourcesPath`、`app.getAppPath()` 或 `app.asar.unpacked`；这些 Electron 打包布局差异由 `getResourcesPath()` 统一处理。
+
+内置 MCP server bundle 在开发环境从项目根 `out/mcp-servers/` 解析，在生产环境从打包后 `resources/mcp-servers/` 解析；路径差异由主进程 infra 模块统一吸收。
 
 ### 目录结构
 

@@ -8,6 +8,9 @@ files:
   - "resources/**"
 asarUnpack:
   - resources/**
+extraResources:
+  - from: out/mcp-servers
+    to: mcp-servers
 win:
   executableName: FylloCode
 nsis:
