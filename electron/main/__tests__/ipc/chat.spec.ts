@@ -268,6 +268,40 @@ describe("registerChatHandlers", () => {
     });
   });
 
+  it("rejects streamMessage when both input agentId and persisted agentId are missing", async () => {
+    mocks.loadSessionMeta.mockResolvedValue({
+      sessionId: "session-1",
+      agentId: "",
+      title: "Session",
+      turnCount: 0,
+      tokenUsage: { used: 0, size: 0 },
+      createdAt: "2026-05-12T00:00:00.000Z",
+      updatedAt: "2026-05-12T00:00:00.000Z",
+    });
+
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "",
+        prompt: "hello",
+      }
+    );
+
+    const sink = {
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    };
+    await expect(mocks.onReady!(sink)).rejects.toMatchObject({
+      code: IpcErrorCodes.VALIDATION_ERROR,
+    });
+
+    const acpSessionMock = vi.mocked((await import("@main/services/chat/acp-session")).AcpSession);
+    expect(acpSessionMock).not.toHaveBeenCalled();
+  });
+
   it("passes chat owner and reminder hook without sending sink chunks", async () => {
     const reminderPart = {
       type: "text",

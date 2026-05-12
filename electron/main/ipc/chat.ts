@@ -2,7 +2,6 @@ import { ipcMain } from "electron";
 import { ChatChannels, ChatStreamChannels } from "@shared/types/channels";
 import type { Message } from "@shared/types/chat";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import { DEFAULT_ACP_AGENT_ID } from "@shared/constants/agents";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
 import {
   createSessionInputSchema,
@@ -152,7 +151,10 @@ export function registerChatHandlers(): void {
       onReady: async (sink) => {
         const projectPath = await resolveProjectPath(projectId);
         const meta = await loadSessionMeta(projectPath, sessionId);
-        const agentId = inputAgentId || meta?.agentId || DEFAULT_ACP_AGENT_ID;
+        const agentId = inputAgentId || meta?.agentId;
+        if (!agentId) {
+          throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "agentId is required");
+        }
 
         const session = new AcpSession({
           fylloSessionId: sessionId,

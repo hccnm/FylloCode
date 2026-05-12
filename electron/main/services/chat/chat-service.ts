@@ -1,7 +1,6 @@
 import type { Message, Session } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
-import { DEFAULT_ACP_AGENT_ID } from "@shared/constants/agents";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { loadProject } from "@main/infra/storage/project-store";
 import {
@@ -50,13 +49,13 @@ export async function listSessions(projectId: string): Promise<Session[]> {
 export async function createSession(input: {
   projectId: string;
   title: string;
-  agentId?: string;
+  agentId: string;
 }): Promise<Session> {
   const projectPath = await resolveProjectPath(input.projectId);
   const now = new Date();
   const meta: SessionMeta = {
     sessionId: newSessionId(),
-    agentId: input.agentId ?? DEFAULT_ACP_AGENT_ID,
+    agentId: input.agentId,
     title: input.title,
     turnCount: 0,
     tokenUsage: { used: 0, size: 0 },

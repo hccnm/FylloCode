@@ -43,15 +43,23 @@ prompt 构造规则（策略 Map，按 `stage.type` 分发）：
 - `proposal-apply`：`加载 skill fyllo-apply-change，实现 {changeId}`
 - 其他 type：抛出错误，code 为 `STAGE_TYPE_NOT_IMPLEMENTED`
 
-`agentId` 取自 `stages[stageIndex].agent`；若为空，使用 workflow 默认 agent（当前硬编码为 `"claude-acp"`）。
+`agentId` SHALL 取自 `stages[stageIndex].agent`。若 `stage.agent` 为空（`undefined` / `null` / 空字符串），handler SHALL 抛 `ipcError(IpcErrorCodes.VALIDATION_ERROR, "stage.agent is required for stage ${stageIndex}")`，且 SHALL NOT 创建 `AcpSession`、SHALL NOT 写入任何 stage 文件。系统 SHALL NOT 维护 workflow / 主进程级 "默认 agentId" 兜底。
 
 #### Scenario: 发起 stage stream
 
 - **WHEN** renderer 调用 `proposal:stageStream`，传入 `{ runId, stageIndex, projectId, changeId }`
+- **AND** `stages[stageIndex].agent` 为非空字符串
 - **THEN** main 进程通过策略 Map 构造 prompt
 - **AND** 创建 `AcpSession`，通过 `MessageChannelMain` 将 port2 传给 renderer
 - **AND** 等待 renderer 发送 `{ type: "ready" }` 后调用 `session.start(prompt)`
 - **AND** 将 `acpSessionId` 记录到 `run.json` 的 `stageAcpSessionIds[stageIndex]`
+
+#### Scenario: Stage 缺少 agent 直接拒绝
+
+- **WHEN** renderer 调用 `proposal:stageStream`，所选 stage 的 `agent` 字段为空
+- **THEN** handler 在创建 `AcpSession` 之前抛 `VALIDATION_ERROR`，错误 message 包含 stage 索引信息
+- **AND** 不向 `stage-{stageIndex}.messages.jsonl` 写入任何记录
+- **AND** 不调用 `sessionRegistry.register`
 
 #### Scenario: 不支持的 stage type
 

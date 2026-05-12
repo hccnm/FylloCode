@@ -117,7 +117,7 @@ const runMeta = {
   runId: "run-1",
   changeId: "change-1",
   workflowId: "workflow-1",
-  stages: [{ id: "stage-1", name: "Apply", type: "proposal-apply" }],
+  stages: [{ id: "stage-1", name: "Apply", type: "proposal-apply", agent: "claude-acp" }],
   currentStageIndex: 0,
   stageAcpSessionIds: {},
   status: "running",
@@ -146,6 +146,25 @@ describe("registerProposalApplyHandlers", () => {
     expect(call).toBeTruthy();
     return call![1] as (event: unknown, input: unknown) => unknown;
   }
+
+  it("rejects stageStream when stage.agent is missing", async () => {
+    mocks.loadApplyRunMeta.mockResolvedValueOnce({
+      ...runMeta,
+      stages: [{ id: "stage-1", name: "Apply", type: "proposal-apply" }],
+    });
+
+    handler(ProposalChannels.stageStream)(
+      { sender: { postMessage: vi.fn() } },
+      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    await expect(mocks.onReady!(sink)).rejects.toMatchObject({
+      code: IpcErrorCodes.VALIDATION_ERROR,
+    });
+    expect(mocks.appendApplyRunMessage).not.toHaveBeenCalled();
+    expect(mocks.register).not.toHaveBeenCalled();
+  });
 
   it("persists and sends stage user message before registering the session", async () => {
     handler(ProposalChannels.stageStream)(

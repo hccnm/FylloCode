@@ -27,18 +27,23 @@ describe("resolveSystemReminder", () => {
     ).resolves.toBeNull();
   });
 
-  it("returns null for unsupported agents", async () => {
+  it("returns a reminder for any non-empty agentId when the owner is known", async () => {
     const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
 
-    await expect(
-      resolveSystemReminder({
-        owner: "chat",
-        projectPath: "/tmp/project",
-        cwd: "/tmp/project",
-        fylloSessionId: "session-1",
-        agentId: "other-agent",
-      })
-    ).resolves.toBeNull();
+    const reminder = await resolveSystemReminder({
+      owner: "chat",
+      projectPath: "/tmp/project",
+      cwd: "/tmp/project",
+      fylloSessionId: "session-1",
+      agentId: "some-other-agent",
+    });
+
+    expect(reminder).toEqual({
+      type: "text",
+      text: expect.stringContaining("/tmp/project"),
+    });
+    expect(reminder?.text.trim().startsWith("<system-reminder>")).toBe(true);
+    expect(reminder?.text.trim().endsWith("</system-reminder>")).toBe(true);
   });
 
   it("wraps the rendered reminder for the default agent", async () => {

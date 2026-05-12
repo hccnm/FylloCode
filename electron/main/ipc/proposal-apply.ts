@@ -2,7 +2,6 @@ import { ipcMain } from "electron";
 import { generateId, type UIMessage } from "ai";
 import { ProposalChannels } from "@shared/types/channels";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import { DEFAULT_ACP_AGENT_ID } from "@shared/constants/agents";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
 import {
   applyInputSchema,
@@ -102,7 +101,13 @@ export function registerProposalApplyHandlers(): void {
         }
 
         const prompt = buildStagePrompt({ changeId: form.changeId, projectPath, stage });
-        const agentId = stage.agent ?? DEFAULT_ACP_AGENT_ID;
+        if (!stage.agent) {
+          throw ipcError(
+            IpcErrorCodes.VALIDATION_ERROR,
+            `stage.agent is required for stage ${form.stageIndex}`
+          );
+        }
+        const agentId = stage.agent;
         const fylloSessionId = newStageFylloSessionId(form.runId, form.stageIndex);
         const userMessage = buildUserMessage(fylloSessionId, prompt);
         try {

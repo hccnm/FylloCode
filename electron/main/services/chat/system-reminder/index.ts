@@ -1,6 +1,5 @@
 import type { TextUIPart } from "ai";
 import { wrapAsSystemReminder } from "./wrap";
-import { CLAUDE_CODE_AGENT_IDS } from "./agents";
 import { resolveChatSystemReminder } from "./providers/chat";
 import { resolveApplySystemReminder } from "./providers/apply";
 import { resolveArchiveSystemReminder } from "./providers/archive";
@@ -15,10 +14,6 @@ const providers = {
 export async function resolveSystemReminder(
   ctx: SystemReminderContext
 ): Promise<TextUIPart | null> {
-  if (!CLAUDE_CODE_AGENT_IDS.includes(ctx.agentId)) {
-    return null;
-  }
-
   const provider = providers[ctx.owner];
   if (!provider) {
     return null;

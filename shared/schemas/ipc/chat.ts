@@ -13,7 +13,7 @@ export const getSessionInputSchema = z.object({
 export const createSessionInputSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().min(1),
-  agentId: z.string().min(1).optional(),
+  agentId: z.string().min(1),
 });
 
 export const updateSessionInputSchema = z.object({
