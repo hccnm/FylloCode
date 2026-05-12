@@ -282,13 +282,12 @@ async function handleSubmit(): Promise<void> {
                     <UButton
                       v-if="hasAvailableCommands"
                       data-test="slash-button"
-                      variant="ghost"
+                      variant="subtle"
                       size="sm"
-                      type="button"
+                      color="neutral"
+                      icon="i-lucide-slash-square"
                       @click="handleSlashButtonClick"
-                    >
-                      <UIcon name="i-lucide-slash-square" />
-                    </UButton>
+                    />
                   </template>
 
                   <template #content>
