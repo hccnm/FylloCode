@@ -2,7 +2,9 @@ import logger from "@main/infra/logger";
 import type { SystemReminderContext } from "../types";
 
 const VARIABLE_PATTERN = /\{\{([a-zA-Z0-9_]+)\}\}/g;
-const ALLOWED_VARIABLES = new Set(["changeId", "stageIndex", "runId", "projectPath"]);
+const ALLOWED_VARIABLES = ["changeId", "stageIndex", "runId", "projectPath"] as const;
+const ALLOWED_VARIABLE_SET = new Set<string>(ALLOWED_VARIABLES);
+type AllowedVariable = (typeof ALLOWED_VARIABLES)[number];
 
 function sanitizeValue(
   ctx: SystemReminderContext,
@@ -26,7 +28,7 @@ function sanitizeValue(
 
 function getVariableValue(
   ctx: SystemReminderContext,
-  field: string
+  field: AllowedVariable
 ): string | number | undefined | null {
   switch (field) {
     case "changeId":
@@ -46,24 +48,22 @@ export function renderSystemReminderTemplate(
   template: string,
   ctx: SystemReminderContext
 ): string | null {
-  let rejected = false;
+  const sanitizedValues = {} as Record<AllowedVariable, string>;
+
+  for (const field of ALLOWED_VARIABLES) {
+    const sanitized = sanitizeValue(ctx, field, getVariableValue(ctx, field) ?? undefined);
+    if (sanitized === null) {
+      return null;
+    }
+    sanitizedValues[field] = sanitized;
+  }
 
   const rendered = template.replace(VARIABLE_PATTERN, (match, field: string) => {
-    if (!ALLOWED_VARIABLES.has(field)) {
+    if (!ALLOWED_VARIABLE_SET.has(field)) {
       return match;
     }
-
-    const sanitized = sanitizeValue(
-      ctx,
-      field,
-      getVariableValue(ctx, field) as string | number | undefined
-    );
-    if (sanitized === null) {
-      rejected = true;
-      return match;
-    }
-    return sanitized;
+    return sanitizedValues[field as AllowedVariable];
   });
 
-  return rejected ? null : rendered;
+  return rendered;
 }

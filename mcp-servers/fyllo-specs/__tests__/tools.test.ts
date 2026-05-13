@@ -17,6 +17,14 @@ describe("tools", () => {
     "bin",
     "openspec.js"
   );
+  const fixtureRoot = join(
+    process.cwd(),
+    "mcp-servers",
+    "fyllo-specs",
+    "__tests__",
+    "fixtures",
+    "openspec-sample"
+  );
 
   it("explore returns state", async () => {
     const text = await exploreTool({});
@@ -29,8 +37,18 @@ describe("tools", () => {
   });
 
   it("apply-change returns ready for the active change", async () => {
-    const text = await applyChangeTool({});
-    expect(text).toContain('"applyState": "ready"');
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    process.env.FYLLO_PROJECT_PATH = fixtureRoot;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    try {
+      const text = await applyChangeTool({ changeName: "sample-change" });
+      expect(text).toContain('"changeName": "sample-change"');
+      expect(text).toContain('"applyState": "ready"');
+    } finally {
+      process.env.FYLLO_PROJECT_PATH = prev;
+      process.env.FYLLO_OPENSPEC_CLI_PATH = prevCli;
+    }
   });
 
   it("apply-change handles missing selection", async () => {

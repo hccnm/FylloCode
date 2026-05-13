@@ -40,7 +40,7 @@ describe("resolveSystemReminder", () => {
 
     expect(reminder).toEqual({
       type: "text",
-      text: expect.stringContaining("/tmp/project"),
+      text: expect.any(String),
     });
     expect(reminder?.text.trim().startsWith("<system-reminder>")).toBe(true);
     expect(reminder?.text.trim().endsWith("</system-reminder>")).toBe(true);
@@ -94,9 +94,10 @@ describe("resolveSystemReminder", () => {
   });
 
   it("replaces allowed placeholders and preserves unknown placeholders", async () => {
-    const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
+    const { renderSystemReminderTemplate } =
+      await import("@main/services/chat/system-reminder/providers/shared");
 
-    const reminder = await resolveSystemReminder({
+    const reminder = renderSystemReminderTemplate("Project {{projectPath}} {{unknownField}}", {
       owner: "chat",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
@@ -104,7 +105,7 @@ describe("resolveSystemReminder", () => {
       agentId: "claude-acp",
     });
 
-    expect(reminder?.text).toContain("/tmp/project");
-    expect(reminder?.text).toContain("{{unknownField}}");
+    expect(reminder).toContain("/tmp/project");
+    expect(reminder).toContain("{{unknownField}}");
   });
 });

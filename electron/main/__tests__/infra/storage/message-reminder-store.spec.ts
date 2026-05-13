@@ -28,7 +28,16 @@ function readLines(filePath: string): UIMessage<MessageMeta>[] {
   return readFileSync(filePath, "utf8")
     .trim()
     .split("\n")
-    .map((line: string) => JSON.parse(line) as UIMessage<MessageMeta>);
+    .map((line: string) => {
+      const message = JSON.parse(line) as UIMessage<MessageMeta>;
+      return {
+        ...message,
+        metadata: {
+          ...message.metadata,
+          createdAt: new Date(message.metadata.createdAt),
+        },
+      };
+    });
 }
 
 const reminder: TextUIPart = {
