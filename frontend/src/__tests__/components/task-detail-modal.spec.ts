@@ -123,6 +123,7 @@ describe("TaskDetailModal", () => {
           updates: {
             title: "修复登录失败 v2",
             description: "更新后的描述",
+            status: "open",
           },
         },
       ],
@@ -138,5 +139,42 @@ describe("TaskDetailModal", () => {
     });
 
     expect(wrapper.text()).toContain("暂无描述");
+  });
+
+  it("displays status badge in view mode", () => {
+    const wrapper = mount(TaskDetailModal, {
+      props: {
+        open: true,
+        task: buildTask({ status: "open" }),
+      },
+    });
+
+    expect(wrapper.text()).toContain("打开");
+  });
+
+  it("displays closed status badge for closed task", () => {
+    const wrapper = mount(TaskDetailModal, {
+      props: {
+        open: true,
+        task: buildTask({ status: "closed" }),
+      },
+    });
+
+    expect(wrapper.text()).toContain("关闭");
+  });
+
+  it("preselects status in edit mode", async () => {
+    const wrapper = mount(TaskDetailModal, {
+      props: {
+        open: true,
+        task: buildTask({ status: "closed" }),
+      },
+    });
+
+    const editButton = wrapper.findAll("button").find((node) => node.text().includes("编辑"));
+    await editButton?.trigger("click");
+
+    expect(wrapper.text()).toContain("编辑任务");
+    expect(wrapper.text()).toContain("关闭");
   });
 });

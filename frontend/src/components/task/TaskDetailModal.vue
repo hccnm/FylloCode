@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { buildSourceDisplay } from "@renderer/utils/task";
 import { timeAgo } from "@renderer/utils/time";
-import type { TaskItem, UpdateTaskInput } from "@shared/types/task";
+import type { TaskItem, TaskStatus, UpdateTaskInput } from "@shared/types/task";
 
 const props = defineProps<{
   open: boolean;
@@ -15,9 +15,15 @@ const emit = defineEmits<{
   save: [{ taskId: string; updates: UpdateTaskInput }];
 }>();
 
+const statusItems: Array<{ label: string; value: TaskStatus }> = [
+  { label: "打开", value: "open" },
+  { label: "关闭", value: "closed" },
+];
+
 const mode = ref<"view" | "edit">("view");
 const title = ref("");
 const description = ref("");
+const status = ref<TaskStatus>("open");
 const titleError = ref("");
 
 const isLocalTask = computed(() => props.task?.source === "local");
@@ -48,6 +54,7 @@ function startEditing(): void {
 
   title.value = props.task.title;
   description.value = props.task.description;
+  status.value = props.task.status;
   titleError.value = "";
   mode.value = "edit";
 }
@@ -73,6 +80,7 @@ function submit(): void {
     updates: {
       title: nextTitle,
       description: description.value.trim(),
+      status: status.value,
     },
   });
 }
@@ -123,6 +131,9 @@ watch(
               <UBadge color="neutral" variant="soft">
                 {{ sourceDisplay }}
               </UBadge>
+              <UBadge :color="task.status === 'open' ? 'success' : 'neutral'" variant="soft">
+                {{ task.status === "open" ? "打开" : "关闭" }}
+              </UBadge>
               <span>创建于 {{ timeAgo(task.createdAt) }}</span>
             </div>
 
@@ -159,6 +170,16 @@ watch(
                 :rows="4"
                 class="w-full"
                 placeholder="补充任务背景、约束或验收标准"
+              />
+            </UFormField>
+
+            <UFormField label="状态">
+              <URadioGroup
+                v-model="status"
+                :items="statusItems"
+                value-key="value"
+                orientation="horizontal"
+                color="primary"
               />
             </UFormField>
           </div>

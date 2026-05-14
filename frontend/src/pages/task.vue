@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useToast } from "@nuxt/ui/composables";
 import CreateTaskModal from "@renderer/components/task/CreateTaskModal.vue";
 import TaskCard from "@renderer/components/task/TaskCard.vue";
 import TaskDetailModal from "@renderer/components/task/TaskDetailModal.vue";
@@ -16,6 +17,7 @@ const projectStore = useProjectStore();
 const sessionStore = useSessionStore();
 const chatStore = useChatStore();
 const taskStore = useTaskStore();
+const toast = useToast();
 
 const showCreateTaskModal = ref(false);
 const showDetailModal = ref(false);
@@ -228,6 +230,8 @@ async function handleSaveDetail(payload: {
   try {
     const updatedTask = await taskStore.updateTask(payload.taskId, payload.updates);
     activeDetailTask.value = updatedTask;
+    toast.add({ title: "保存成功", color: "success" });
+    showDetailModal.value = false;
   } catch {
     // taskStore 已经持有错误状态，弹窗保持编辑态即可
   }
