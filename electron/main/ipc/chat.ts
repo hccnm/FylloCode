@@ -31,7 +31,12 @@ import {
   updateSession,
 } from "@main/services/chat/chat-service";
 import { sessionRegistry } from "@main/services/chat/session-registry";
-import { appendMessage, loadSessionMeta, saveSessionMeta } from "@main/infra/storage/session-store";
+import {
+  appendMessage,
+  loadSessionMeta,
+  saveSessionMeta,
+  type SessionMeta,
+} from "@main/infra/storage/session-store";
 import { sessionMessagesPath } from "@main/infra/storage/session-store";
 import { prependReminderToLastUserMessage } from "@main/infra/storage/message-reminder-store";
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
@@ -45,25 +50,18 @@ function mapAcpErrorCode(raw: string): IpcErrorCode {
   return IpcErrorCodes.ACP_ERROR;
 }
 
-async function updateSessionTokenUsage(
+async function updateSessionMeta(
   projectPath: string,
   sessionId: string,
-  tokenUsage: {
-    used: number;
-    size: number;
-    cost?: { amount: number; currency: string };
-  }
-): Promise<void> {
+  update: (currentMeta: SessionMeta) => SessionMeta
+): Promise<boolean> {
   const currentMeta = await loadSessionMeta(projectPath, sessionId);
   if (!currentMeta) {
-    return;
+    return false;
   }
 
-  await saveSessionMeta(projectPath, {
-    ...currentMeta,
-    tokenUsage,
-    updatedAt: new Date().toISOString(),
-  });
+  await saveSessionMeta(projectPath, update(currentMeta));
+  return true;
 }
 
 export function registerChatHandlers(): void {
@@ -170,7 +168,24 @@ export function registerChatHandlers(): void {
           },
         });
         const assembler = new MessageAssembler(sessionId);
-        let usageUpdatePersist = Promise.resolve();
+        let sessionMetaPersist = Promise.resolve();
+        const enqueueSessionMetaPersist = (
+          update: (currentMeta: SessionMeta) => SessionMeta,
+          failureMessage: string
+        ): void => {
+          sessionMetaPersist = sessionMetaPersist
+            .then(async () => {
+              const didUpdate = await updateSessionMeta(projectPath, sessionId, update);
+              if (!didUpdate) {
+                logger.warn(
+                  `[chat] skipped session meta update because meta was missing: ${sessionId}`
+                );
+              }
+            })
+            .catch((error: unknown) => {
+              logger.error(failureMessage, error);
+            });
+        };
         sessionRegistry.register("chat", sessionId, session);
 
         session.on("event", (ev: SessionEvent) => {
@@ -190,39 +205,46 @@ export function registerChatHandlers(): void {
             case "usage_update": {
               const chunk = toMessageChunk(ev);
               if (chunk) sink.sendChunk(chunk);
-              usageUpdatePersist = usageUpdatePersist
-                .then(() =>
-                  updateSessionTokenUsage(projectPath, sessionId, {
+              enqueueSessionMetaPersist(
+                (currentMeta) => ({
+                  ...currentMeta,
+                  tokenUsage: {
                     used: ev.used,
                     size: ev.size,
                     cost: ev.cost,
-                  })
-                )
-                .catch((error: unknown) => {
-                  logger.error("[chat] failed to persist session usage update", error);
-                });
+                  },
+                  updatedAt: new Date().toISOString(),
+                }),
+                "[chat] failed to persist session usage update"
+              );
               break;
             }
             case "available_commands_update": {
               const chunk = toMessageChunk(ev);
               if (chunk) sink.sendChunk(chunk);
+              enqueueSessionMetaPersist(
+                (currentMeta) => ({
+                  ...currentMeta,
+                  available_commands: ev.commands,
+                  updatedAt: new Date().toISOString(),
+                }),
+                "[chat] failed to persist session available commands update"
+              );
               break;
             }
             case "session_info_update":
-              void (async () => {
-                const currentMeta = await loadSessionMeta(projectPath, sessionId);
-                if (currentMeta) {
-                  await saveSessionMeta(projectPath, {
-                    ...currentMeta,
-                    title: ev.title,
-                    updatedAt: new Date().toISOString(),
-                  });
-                }
+              enqueueSessionMetaPersist(
+                (currentMeta) => ({
+                  ...currentMeta,
+                  title: ev.title,
+                  updatedAt: new Date().toISOString(),
+                }),
+                "[chat] failed to persist session title update"
+              );
+              {
                 const chunk = toMessageChunk(ev);
                 if (chunk) sink.sendChunk(chunk);
-              })().catch((error: unknown) => {
-                logger.error("[chat] failed to persist session title update", error);
-              });
+              }
               break;
             case "done":
               void (async () => {
@@ -230,19 +252,16 @@ export function registerChatHandlers(): void {
                 if (message) {
                   await appendMessage(projectPath, sessionId, message);
                 }
-                await usageUpdatePersist;
-                const currentMeta = await loadSessionMeta(projectPath, sessionId);
-                if (currentMeta) {
-                  await saveSessionMeta(projectPath, {
-                    ...currentMeta,
-                    tokenUsage: {
-                      ...currentMeta.tokenUsage,
-                      used: currentMeta.tokenUsage.used + ev.totalTokens,
-                      size: currentMeta.tokenUsage.size,
-                    },
-                    updatedAt: new Date().toISOString(),
-                  });
-                }
+                await sessionMetaPersist;
+                await updateSessionMeta(projectPath, sessionId, (currentMeta) => ({
+                  ...currentMeta,
+                  tokenUsage: {
+                    ...currentMeta.tokenUsage,
+                    used: currentMeta.tokenUsage.used + ev.totalTokens,
+                    size: currentMeta.tokenUsage.size,
+                  },
+                  updatedAt: new Date().toISOString(),
+                }));
                 sink.sendDone(ev.totalTokens);
                 sessionRegistry.unregister("chat", sessionId);
               })().catch((error: unknown) => {

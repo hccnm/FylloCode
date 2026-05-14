@@ -35,6 +35,7 @@ export function toSession(meta: SessionMeta, projectId: string): Session {
     createdAt: new Date(meta.createdAt),
     updatedAt: new Date(meta.updatedAt),
     messages: [],
+    availableCommands: meta.available_commands,
   };
 }
 

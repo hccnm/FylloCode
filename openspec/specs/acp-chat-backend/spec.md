@@ -345,13 +345,14 @@ type MessageChunkData =
 - **AND** 立即更新 session 元数据的 `tokenUsage` 为 `{ used, size, cost }` 并调用 `saveSessionMeta` 持久化到磁盘
 - **AND** 当 `cost` 不存在时，`tokenUsage.cost` SHALL 保持为 `undefined`
 
-#### Scenario: available_commands_update 透传但不持久化
+#### Scenario: available_commands_update 透传并持久化
 
 - **WHEN** `chat:stream:message` 的 `AcpSession` emit `available_commands_update` 事件
 - **THEN** 主进程直接通过 sink 发送 `{ type: "chunk", data: { kind: "available_commands_update", commands } }`
 - **AND** 不经过 `MessageAssembler`
-- **AND** 不修改 `SessionMeta`，不调用 `saveSessionMeta`，不写任何磁盘
-- **AND** `commands` 为空数组时仍然透传
+- **AND** 主进程将 `commands` 覆盖写入当前 session meta 的 `available_commands` 字段并调用 `saveSessionMeta` 持久化到磁盘
+- **AND** `commands` 为空数组时仍然透传并持久化为空数组
+- **AND** 持久化失败 SHALL 记录日志但 SHALL NOT 阻断本次流式响应
 
 #### Scenario: reasoning_delta 进入 MessageAssembler 并透传
 
@@ -367,6 +368,7 @@ type MessageChunkData =
 - **AND** 通过 sink 发送 `{ type: "done", data: { totalTokens } }`
 - **AND** 更新 session 元数据的 `tokenUsage.used` 字段（累加 `totalTokens`）
 - **AND** 保留 session 元数据中已有的 `tokenUsage.cost`
+- **AND** 保留 session 元数据中已有的 `available_commands`
 - **AND** 从 `sessionRegistry` 注销对应的 `chat` session
 
 #### Scenario: 渲染进程在流中途关闭仍完成 assistant 落盘
@@ -374,6 +376,7 @@ type MessageChunkData =
 - **WHEN** 渲染进程在 chat stream 进行中关闭 MessagePort
 - **THEN** 主进程的 `AcpSession` 继续运行
 - **AND** `MessageAssembler` 继续累积事件（包括 reasoning_delta）
+- **AND** `available_commands_update` 仍会写入当前 session meta 的 `available_commands`
 - **AND** `done` 到达时 assistant 消息正常写入 `sessions/<sessionId>.messages.jsonl`，包含 reasoning part
 
 #### Scenario: Assistant 消息落盘失败
@@ -401,12 +404,13 @@ type MessageChunkData =
 
 ### Requirement: Session 信息持久化
 
-系统 SHALL 将每个 session 的元数据（含 `acpSessionId`、`agentId`）持久化到 `getDataSubPath('sessions')/<sessionId>.json`，支持应用重启后恢复 ACP session 上下文。
+系统 SHALL 将每个 session 的元数据（含 `acpSessionId`、`agentId`、可选 `available_commands`）持久化到 `getDataSubPath('sessions')/<sessionId>.json`，支持应用重启后恢复 ACP session 上下文和 session 级可用命令列表。
 
 #### Scenario: 首次创建 session 时写入持久化文件
 
 - **WHEN** 新 ACP session 创建成功
 - **THEN** 系统在 `getDataSubPath('projects')/<encodeProjectPath(project.path)>/sessions/<sessionId>.json` 写入 `{ sessionId, acpSessionId, agentId, title, turnCount, tokenUsage, createdAt, updatedAt }`
+- **AND** `available_commands` 初始缺失
 - **AND** `tokenUsage` 初始化为 `{ used: 0, size: 0 }`
 - **AND** `tokenUsage.cost` 初始为 `undefined`
 - **AND** `encodeProjectPath` 实现为：去掉路径开头的 `/`，将所有 `/` 替换为 `-`
@@ -415,6 +419,14 @@ type MessageChunkData =
 
 - **WHEN** IPC handler 收到 `chat:stream:message`，且 `getDataSubPath('projects')/<encodeProjectPath(project.path)>/sessions/<sessionId>.json` 存在
 - **THEN** 读取文件中的 `acpSessionId` 用于 `resumeSession`
+- **AND** 若文件包含 `available_commands`，主进程在构建 `Session` 返回值时将其映射为 `availableCommands`
+
+#### Scenario: available_commands 持久化格式
+
+- **WHEN** 主进程保存 session meta 且当前 session 已收到 commands
+- **THEN** session meta JSON 使用 key `available_commands`
+- **AND** 其值为 `AcpAvailableCommand[]`
+- **AND** 不使用 `availableCommands` 作为落盘 key
 
 ### Requirement: listSessions IPC 从磁盘返回项目 session 列表
 

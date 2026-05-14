@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { sessionsDir } from "@main/infra/storage/project-paths";
-import type { MessageMeta, TokenUsage } from "@shared/types/chat";
+import type { AcpAvailableCommand, MessageMeta, TokenUsage } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
 export interface SessionMeta {
@@ -11,6 +11,7 @@ export interface SessionMeta {
   title: string;
   turnCount: number;
   tokenUsage: TokenUsage;
+  available_commands?: AcpAvailableCommand[];
   createdAt: string;
   updatedAt: string;
 }
@@ -56,6 +57,9 @@ function normalizeSessionMeta(raw: unknown): SessionMeta {
   return {
     ...meta,
     tokenUsage: normalizeTokenUsage(meta.tokenUsage),
+    available_commands: Array.isArray(meta.available_commands)
+      ? meta.available_commands
+      : undefined,
   };
 }
 

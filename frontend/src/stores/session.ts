@@ -14,10 +14,7 @@ type SerializedMessage = Omit<Message, "metadata"> & {
   };
 };
 
-type SerializedSession = Omit<
-  Session,
-  "createdAt" | "updatedAt" | "messages" | "tokenUsage" | "availableCommands"
-> & {
+type SerializedSession = Omit<Session, "createdAt" | "updatedAt" | "messages" | "tokenUsage"> & {
   createdAt: SerializableDate;
   updatedAt: SerializableDate;
   tokenUsage?: Partial<TokenUsage>;
@@ -122,6 +119,7 @@ export const useSessionStore = defineStore("session", () => {
     session.tokenUsage = normalizeTokenUsage(nextSession.tokenUsage);
     session.createdAt = nextSession.createdAt;
     session.updatedAt = nextSession.updatedAt;
+    session.availableCommands = nextSession.availableCommands;
     return session;
   }
 

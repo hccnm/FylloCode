@@ -238,7 +238,7 @@ describe("registerChatHandlers", () => {
     expect(mocks.appendMessage).not.toHaveBeenCalled();
   });
 
-  it("increments persisted token usage on done", async () => {
+  it("increments persisted token usage on done without dropping available commands", async () => {
     mocks.loadSessionMeta.mockResolvedValue({
       sessionId: "session-1",
       agentId: "claude-acp",
@@ -249,6 +249,7 @@ describe("registerChatHandlers", () => {
         size: 1000000,
         cost: { amount: 0.145305, currency: "USD" },
       },
+      available_commands: [{ name: "review", description: "Review code" }],
       createdAt: "2026-05-09T00:00:00.000Z",
       updatedAt: "2026-05-09T00:00:00.000Z",
     });
@@ -281,6 +282,7 @@ describe("registerChatHandlers", () => {
             size: 1000000,
             cost: { amount: 0.145305, currency: "USD" },
           },
+          available_commands: [{ name: "review", description: "Review code" }],
         })
       );
       expect(sink.sendDone).toHaveBeenCalledWith(4);
@@ -396,7 +398,7 @@ describe("registerChatHandlers", () => {
     );
   });
 
-  it("forwards available_commands_update without assembler or session meta writes", async () => {
+  it("forwards available_commands_update without assembler and persists session meta", async () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
@@ -421,10 +423,56 @@ describe("registerChatHandlers", () => {
     mocks.eventHandler!(event);
 
     expect(mocks.assemblerApply).not.toHaveBeenCalled();
-    expect(mocks.saveSessionMeta).not.toHaveBeenCalled();
     expect(sink.sendChunk).toHaveBeenCalledWith({
       kind: "available_commands_update",
       commands: [{ name: "review", description: "Review code" }],
+    });
+    await vi.waitFor(() => {
+      expect(mocks.saveSessionMeta).toHaveBeenCalledWith(
+        "/tmp/project",
+        expect.objectContaining({
+          available_commands: [{ name: "review", description: "Review code" }],
+          title: "Session",
+          tokenUsage: { used: 0, size: 0 },
+        })
+      );
+    });
+  });
+
+  it("persists an empty available_commands_update array", async () => {
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: "hello",
+      }
+    );
+
+    const sink = {
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    };
+    await mocks.onReady!(sink);
+
+    mocks.eventHandler!({
+      type: "available_commands_update",
+      commands: [],
+    });
+
+    expect(sink.sendChunk).toHaveBeenCalledWith({
+      kind: "available_commands_update",
+      commands: [],
+    });
+    await vi.waitFor(() => {
+      expect(mocks.saveSessionMeta).toHaveBeenCalledWith(
+        "/tmp/project",
+        expect.objectContaining({
+          available_commands: [],
+        })
+      );
     });
   });
 });
