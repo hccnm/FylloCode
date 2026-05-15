@@ -23,6 +23,8 @@
     "build:unpack": "npm run build:mcp-servers && npm run build && electron-builder --dir",
     "build:win": "npm run build:mcp-servers && npm run build && electron-builder --win",
     "build:mac": "npm run build:mcp-servers && npm run build && electron-builder --mac",
+    "build:mac:x64": "npm run build:mcp-servers && npm run build && electron-builder --mac --x64",
+    "build:mac:arm64": "npm run build:mcp-servers && npm run build && electron-builder --mac --arm64",
     "build:linux": "npm run build:mcp-servers && npm run build && electron-builder --linux",
     "icon:build": "node scripts/icon-build.mjs",
     "test": "vitest run",
