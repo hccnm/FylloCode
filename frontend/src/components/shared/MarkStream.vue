@@ -26,4 +26,7 @@ defineProps<{
 .markstream-vue :deep(.paragraph-node) {
   margin-top: 0;
 }
+.markstream-vue :deep(.paragraph-node:last-child) {
+  margin-bottom: 0;
+}
 </style>
