@@ -25,6 +25,8 @@ export type SessionMetaPatch = Partial<
 type SessionMetaRecord = Record<string, unknown>;
 
 const DEFAULT_TOKEN_USAGE: Pick<TokenUsage, "used" | "size"> = { used: 0, size: 0 };
+const sessionMetaWriteQueues = new Map<string, Promise<void>>();
+let sessionMetaTempWriteCounter = 0;
 
 function metaPath(projectPath: string, sessionId: string): string {
   return join(sessionsDir(projectPath), `${sessionId}.json`);
@@ -38,17 +40,157 @@ async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
+function isSessionMetaRecord(value: unknown): value is SessionMetaRecord {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function extractLeadingJsonObject(content: string): string | null {
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < content.length; index += 1) {
+    const char = content[index];
+
+    if (start === -1) {
+      if (/\s/.test(char)) {
+        continue;
+      }
+      if (char !== "{") {
+        return null;
+      }
+      start = index;
+      depth = 1;
+      continue;
+    }
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char !== "}") {
+      continue;
+    }
+
+    depth -= 1;
+    if (depth === 0) {
+      return content.slice(start, index + 1);
+    }
+  }
+
+  return null;
+}
+
+function parseSessionMetaRecordContent(content: string): {
+  record: SessionMetaRecord;
+  repaired: boolean;
+} | null {
+  try {
+    const parsed = JSON.parse(content);
+    return isSessionMetaRecord(parsed) ? { record: parsed, repaired: false } : null;
+  } catch (error: unknown) {
+    if (!(error instanceof SyntaxError)) {
+      return null;
+    }
+  }
+
+  const recoveredContent = extractLeadingJsonObject(content);
+  if (!recoveredContent) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(recoveredContent);
+    return isSessionMetaRecord(parsed) ? { record: parsed, repaired: true } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function withSessionMetaWriteLock<T>(
+  projectPath: string,
+  sessionId: string,
+  task: () => Promise<T>
+): Promise<T> {
+  const filePath = metaPath(projectPath, sessionId);
+  const previous = sessionMetaWriteQueues.get(filePath) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const queued = previous.catch(() => undefined).then(() => current);
+  sessionMetaWriteQueues.set(filePath, queued);
+
+  await previous.catch(() => undefined);
+  try {
+    return await task();
+  } finally {
+    release();
+    if (sessionMetaWriteQueues.get(filePath) === queued) {
+      sessionMetaWriteQueues.delete(filePath);
+    }
+  }
+}
+
+async function writeSessionMetaFile(filePath: string, content: string): Promise<void> {
+  const tempPath = `${filePath}.${process.pid}.${sessionMetaTempWriteCounter}.tmp`;
+  sessionMetaTempWriteCounter += 1;
+  try {
+    await fs.writeFile(tempPath, content, "utf8");
+    await fs.rename(tempPath, filePath);
+  } catch (error: unknown) {
+    await fs.unlink(tempPath).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function writeSessionMetaRecordUnlocked(
+  projectPath: string,
+  record: SessionMetaRecord
+): Promise<SessionMetaRecord> {
+  const normalized = normalizeSessionMetaRecord(record);
+  const sessionId = normalized.sessionId;
+  if (typeof sessionId !== "string" || sessionId.length === 0) {
+    throw new TypeError("session meta record must include a string sessionId");
+  }
+
+  await ensureDir(sessionsDir(projectPath));
+  await writeSessionMetaFile(metaPath(projectPath, sessionId), JSON.stringify(normalized, null, 2));
+  return normalized;
+}
+
 async function readSessionMetaRecord(
   projectPath: string,
   sessionId: string
 ): Promise<SessionMetaRecord | null> {
   try {
     const content = await fs.readFile(metaPath(projectPath, sessionId), "utf8");
-    const parsed = JSON.parse(content);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as SessionMetaRecord;
+    const parsed = parseSessionMetaRecordContent(content);
+    if (!parsed) {
+      return null;
     }
-    return null;
+
+    return parsed.record;
   } catch {
     return null;
   }
@@ -89,14 +231,14 @@ async function writeSessionMetaRecord(
   projectPath: string,
   record: SessionMetaRecord
 ): Promise<SessionMetaRecord> {
-  const normalized = normalizeSessionMetaRecord(record);
-  await ensureDir(sessionsDir(projectPath));
-  await fs.writeFile(
-    metaPath(projectPath, normalized.sessionId as string),
-    JSON.stringify(normalized, null, 2),
-    "utf8"
+  const sessionId = record.sessionId;
+  if (typeof sessionId !== "string" || sessionId.length === 0) {
+    throw new TypeError("session meta record must include a string sessionId");
+  }
+
+  return withSessionMetaWriteLock(projectPath, sessionId, async () =>
+    writeSessionMetaRecordUnlocked(projectPath, record)
   );
-  return normalized;
 }
 
 function mergeSessionMetaRecord(
@@ -146,10 +288,13 @@ export async function listSessionMetas(projectPath: string): Promise<SessionMeta
     const files = await fs.readdir(dir);
     const metas: SessionMeta[] = [];
     for (const file of files) {
-      if (!file.endsWith(".json")) continue;
+      if (!file.startsWith("session") || !file.endsWith(".json")) continue;
       try {
-        const content = await fs.readFile(join(dir, file), "utf8");
-        metas.push(toSessionMeta(JSON.parse(content) as SessionMetaRecord));
+        const sessionId = file.slice(0, -".json".length);
+        const meta = await loadSessionMeta(projectPath, sessionId);
+        if (meta) {
+          metas.push(meta);
+        }
       } catch {
         // skip malformed files
       }
@@ -165,16 +310,21 @@ export async function patchSessionMeta(
   sessionId: string,
   patch: SessionMetaPatch | ((currentMeta: SessionMeta) => SessionMetaPatch)
 ): Promise<SessionMeta | null> {
-  const currentRecord = await readSessionMetaRecord(projectPath, sessionId);
-  if (!currentRecord) {
-    return null;
-  }
+  return withSessionMetaWriteLock(projectPath, sessionId, async () => {
+    const currentRecord = await readSessionMetaRecord(projectPath, sessionId);
+    if (!currentRecord) {
+      return null;
+    }
 
-  const currentMeta = toSessionMeta(currentRecord);
-  const nextPatch = typeof patch === "function" ? patch(currentMeta) : patch;
-  return toSessionMeta(
-    await writeSessionMetaRecord(projectPath, mergeSessionMetaRecord(currentRecord, nextPatch))
-  );
+    const currentMeta = toSessionMeta(currentRecord);
+    const nextPatch = typeof patch === "function" ? patch(currentMeta) : patch;
+    return toSessionMeta(
+      await writeSessionMetaRecordUnlocked(
+        projectPath,
+        mergeSessionMetaRecord(currentRecord, nextPatch)
+      )
+    );
+  });
 }
 
 export async function upsertSessionMeta(
@@ -183,14 +333,19 @@ export async function upsertSessionMeta(
   create: () => SessionMeta,
   patch: SessionMetaPatch | ((currentMeta: SessionMeta) => SessionMetaPatch)
 ): Promise<SessionMeta> {
-  const currentRecord =
-    (await readSessionMetaRecord(projectPath, sessionId)) ??
-    (create() as unknown as SessionMetaRecord);
-  const currentMeta = toSessionMeta(currentRecord);
-  const nextPatch = typeof patch === "function" ? patch(currentMeta) : patch;
-  return toSessionMeta(
-    await writeSessionMetaRecord(projectPath, mergeSessionMetaRecord(currentRecord, nextPatch))
-  );
+  return withSessionMetaWriteLock(projectPath, sessionId, async () => {
+    const currentRecord =
+      (await readSessionMetaRecord(projectPath, sessionId)) ??
+      (create() as unknown as SessionMetaRecord);
+    const currentMeta = toSessionMeta(currentRecord);
+    const nextPatch = typeof patch === "function" ? patch(currentMeta) : patch;
+    return toSessionMeta(
+      await writeSessionMetaRecordUnlocked(
+        projectPath,
+        mergeSessionMetaRecord(currentRecord, nextPatch)
+      )
+    );
+  });
 }
 
 export async function deleteSession(projectPath: string, sessionId: string): Promise<void> {

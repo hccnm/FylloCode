@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, promises as fsPromises, readFileSync, rmSync, writeFileSync } from "fs";
 import { dirname } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionMeta } from "@main/infra/storage/session-store";
@@ -13,6 +13,7 @@ vi.mock("@main/infra/paths", () => ({
 
 import {
   createSessionMeta,
+  listSessionMetas,
   loadSessionMeta,
   patchSessionMeta,
   saveSessionMeta,
@@ -139,6 +140,72 @@ describe("session-store", () => {
     expect(raw.title).toBe("Updated Session");
     expect(raw.available_commands).toEqual([{ name: "review", description: "Review code" }]);
     expect(raw.future_field).toEqual({ enabled: true });
+  });
+
+  it("reads malformed session meta files with trailing content without rewriting them", async () => {
+    mkdirSync(dirname(sessionMetaPath()), { recursive: true });
+    writeFileSync(
+      sessionMetaPath(),
+      `${JSON.stringify(
+        meta({
+          available_commands: [{ name: "review", description: "Review code" }],
+        }),
+        null,
+        2
+      )}\ntrailing-garbage`,
+      "utf8"
+    );
+
+    await expect(listSessionMetas(projectPath)).resolves.toEqual([
+      meta({
+        available_commands: [{ name: "review", description: "Review code" }],
+      }),
+    ]);
+    await expect(loadSessionMeta(projectPath, "session-1")).resolves.toEqual(
+      meta({
+        available_commands: [{ name: "review", description: "Review code" }],
+      })
+    );
+
+    const unchangedContent = readFileSync(sessionMetaPath(), "utf8");
+    expect(unchangedContent).toContain("trailing-garbage");
+  });
+
+  it("serializes concurrent writes to the same session meta file", async () => {
+    const realWriteFile = fsPromises.writeFile.bind(fsPromises);
+    let activeWrites = 0;
+    let maxConcurrentWrites = 0;
+    const targetPathPrefix = `${sessionMetaPath()}.`;
+    const writeSpy = vi
+      .spyOn(fsPromises, "writeFile")
+      .mockImplementation(async (path, data, options) => {
+        if (typeof path === "string" && path.startsWith(targetPathPrefix)) {
+          activeWrites += 1;
+          maxConcurrentWrites = Math.max(maxConcurrentWrites, activeWrites);
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          try {
+            return await realWriteFile(path, data, options);
+          } finally {
+            activeWrites -= 1;
+          }
+        }
+
+        return realWriteFile(path, data, options);
+      });
+
+    try {
+      await Promise.all([
+        saveSessionMeta(projectPath, meta({ title: "First Save" })),
+        saveSessionMeta(projectPath, meta({ title: "Second Save" })),
+      ]);
+    } finally {
+      writeSpy.mockRestore();
+    }
+
+    expect(maxConcurrentWrites).toBe(1);
+    await expect(loadSessionMeta(projectPath, "session-1")).resolves.toMatchObject({
+      sessionId: "session-1",
+    });
   });
 
   it("upserts a missing session meta file without dropping future fields", async () => {
