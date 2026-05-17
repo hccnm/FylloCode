@@ -95,6 +95,30 @@ config.global.stubs = {
   Badge: {
     template: "<span><slot /></span>",
   },
+  UTabs: {
+    template:
+      '<div><button v-for="item in items" :key="item[valueKey || \'value\']" type="button" :data-test="`tab-${item[valueKey || \'value\']}`" @click="$emit(\'update:modelValue\', item[valueKey || \'value\'])">{{ item.label }}</button></div>',
+    props: ["items", "modelValue", "valueKey", "variant", "size"],
+    emits: ["update:modelValue"],
+  },
+  Tabs: {
+    template:
+      '<div><button v-for="item in items" :key="item[valueKey || \'value\']" type="button" :data-test="`tab-${item[valueKey || \'value\']}`" @click="$emit(\'update:modelValue\', item[valueKey || \'value\'])">{{ item.label }}</button></div>',
+    props: ["items", "modelValue", "valueKey", "variant", "size"],
+    emits: ["update:modelValue"],
+  },
+  URadioGroup: {
+    template:
+      '<div><button v-for="item in items" :key="item[valueKey || \'value\']" type="button" :data-test="`radio-${item[valueKey || \'value\']}`" @click="$emit(\'update:modelValue\', item[valueKey || \'value\'])">{{ item.label }}</button></div>',
+    props: ["items", "modelValue", "valueKey", "orientation", "color"],
+    emits: ["update:modelValue"],
+  },
+  RadioGroup: {
+    template:
+      '<div><button v-for="item in items" :key="item[valueKey || \'value\']" type="button" :data-test="`radio-${item[valueKey || \'value\']}`" @click="$emit(\'update:modelValue\', item[valueKey || \'value\'])">{{ item.label }}</button></div>',
+    props: ["items", "modelValue", "valueKey", "orientation", "color"],
+    emits: ["update:modelValue"],
+  },
   UIcon: true,
   Icon: true,
   USelect: true,

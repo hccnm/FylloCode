@@ -52,47 +52,18 @@
 
 ### Requirement: 任务 prompt 格式在不同来源间保持一致
 
-系统 SHALL 使用一致的 prompt 模板，无论任务来源（local、yunxiao、github）。来源特定信息 SHALL 作为上下文包含在同一模板结构中。
+系统 SHALL 使用一致的 prompt 模板，无论任务来源（local、yunxiao、github）。来源特定信息 SHALL 作为上下文包含在同一模板结构中。对于外部任务，当存在 `sourceMeta.url` 时，prompt SHALL 包含来源显示标签与 URL；当 `sourceMeta.url` 为空时，prompt SHALL 仅包含来源显示标签，SHALL NOT 输出空括号或空 URL 占位。
 
-#### Scenario: 本地任务 prompt 格式
+#### Scenario: 外部任务 prompt 带 URL
 
-- **WHEN** 生成本地任务 prompt
-- **THEN** 格式为：
+- **WHEN** 生成一条带有 `sourceMeta.url` 的外部任务 prompt
+- **THEN** prompt 的来源行格式为 `**来源**: <sourceDisplay> (<sourceUrl>)`
 
-  ```
-  请帮我分析并实现这个任务：
+#### Scenario: 真实云效任务 prompt 无 URL
 
-  **来源**: 本地
-  **标题**: <title>
-
-  **描述**:
-  <description>
-
-  请帮我：
-  1. 分析这个任务的技术实现方案
-  2. 如果合适，创建一个 OpenSpec proposal 来规划实现步骤
-  ```
-
-#### Scenario: 外部任务 prompt 格式
-
-- **WHEN** 生成外部任务 prompt（未来阶段）
-- **THEN** 格式包含来源派生的显示标签和 URL：
-
-  ```
-  请帮我分析并实现这个任务：
-
-  **来源**: <sourceDisplay> (<sourceUrl>)
-  **标题**: <title>
-
-  **描述**:
-  <description>
-
-  请帮我：
-  1. 分析这个任务的技术实现方案
-  2. 如果合适，创建一个 OpenSpec proposal 来规划实现步骤
-  ```
-
-- **AND** `<sourceDisplay>` 从 `source` 和 `sourceMeta` 派生（例如，yunxiao 有 `key` 时为 `云效 YX-1024`，github 有 `repository` 和 `number` 时为 `example/repo#421`）
+- **WHEN** 生成一条真实云效任务 prompt，且其 `sourceMeta.url` 为空
+- **THEN** prompt 的来源行格式为 `**来源**: <sourceDisplay>`
+- **AND** prompt 中不出现空括号
 
 ### Requirement: 缺失描述不破坏 prompt 生成
 

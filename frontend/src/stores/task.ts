@@ -1,6 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { taskApi } from "@renderer/api/task";
+import { integrationApi } from "@renderer/api/integration";
 import { useProjectStore } from "./project";
 import type {
   CreateLocalTaskInput,
@@ -9,8 +10,20 @@ import type {
   TaskStatus,
   UpdateTaskInput,
 } from "@shared/types/task";
+import type { ProjectIntegrationConfig, ProjectIntegrationEntry } from "@shared/types/integration";
 
 type TaskSourceFilter = TaskSource | "all";
+type TaskSourceTab = { label: string; value: TaskSource };
+
+const baseSourceTabs: TaskSourceTab[] = [{ label: "本地", value: "local" }];
+
+function isMountedYunxiaoProjexProject(entry: ProjectIntegrationEntry): boolean {
+  return entry.providerId === "yunxiao" && entry.resourceType === "projex-project";
+}
+
+function hasYunxiaoTaskSource(config: ProjectIntegrationConfig | null): boolean {
+  return (config?.["project-management"] ?? []).some(isMountedYunxiaoProjexProject);
+}
 
 function toDate(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value);
@@ -34,6 +47,14 @@ export const useTaskStore = defineStore("task", () => {
   const error = ref<string | null>(null);
   const sourceFilter = ref<TaskSourceFilter>("all");
   const statusFilter = ref<TaskStatus>("open");
+  const availableSources = ref<TaskSource[]>(["local"]);
+  const projectIntegration = ref<ProjectIntegrationConfig | null>(null);
+
+  const sourceTabs = computed<TaskSourceTab[]>(() => {
+    return availableSources.value.map((source) =>
+      source === "local" ? baseSourceTabs[0] : { label: "云效", value: "yunxiao" }
+    );
+  });
 
   const tasksBySource = computed(() =>
     sourceFilter.value === "all"
@@ -50,6 +71,36 @@ export const useTaskStore = defineStore("task", () => {
 
   function getCurrentProjectId(): string | undefined {
     return useProjectStore().currentProject?.id;
+  }
+
+  function normalizeAvailableSources(): void {
+    const sources: TaskSource[] = ["local"];
+    if (hasYunxiaoTaskSource(projectIntegration.value)) {
+      sources.push("yunxiao");
+    }
+    availableSources.value = sources;
+    if (sourceFilter.value !== "all" && !sources.includes(sourceFilter.value)) {
+      sourceFilter.value = "local";
+    }
+  }
+
+  async function refreshAvailableSources(projectId?: string): Promise<void> {
+    if (!projectId) {
+      projectIntegration.value = null;
+      availableSources.value = ["local"];
+      if (sourceFilter.value !== "all") {
+        sourceFilter.value = "local";
+      }
+      return;
+    }
+
+    const result = await integrationApi.getProjectIntegration(projectId);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
+    projectIntegration.value = result.data;
+    normalizeAvailableSources();
   }
 
   function setTasks(items: TaskItem[]): void {
@@ -75,6 +126,8 @@ export const useTaskStore = defineStore("task", () => {
 
     if (!projectId) {
       tasks.value = [];
+      availableSources.value = ["local"];
+      projectIntegration.value = null;
       error.value = "当前没有选中的项目";
       return;
     }
@@ -83,7 +136,13 @@ export const useTaskStore = defineStore("task", () => {
     error.value = null;
 
     try {
-      const result = await taskApi.listTasks(projectId, source);
+      await refreshAvailableSources(projectId);
+      if (sourceFilter.value !== "all" && !availableSources.value.includes(sourceFilter.value)) {
+        sourceFilter.value = "local";
+      }
+
+      const nextSource = sourceFilter.value === "all" ? undefined : sourceFilter.value;
+      const result = await taskApi.listTasks(projectId, nextSource);
       if (!result.ok) {
         throw new Error(result.error.message);
       }
@@ -154,10 +213,14 @@ export const useTaskStore = defineStore("task", () => {
     tasks,
     loading,
     error,
+    availableSources,
+    sourceTabs,
+    projectIntegration,
     sourceFilter,
     statusFilter,
     tasksBySource,
     filteredTasks,
+    refreshAvailableSources,
     loadTasks,
     createTask,
     updateTask,

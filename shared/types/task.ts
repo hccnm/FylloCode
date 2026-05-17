@@ -22,7 +22,7 @@ export interface YunxiaoTaskMeta {
   source: "yunxiao";
   url?: string;
   key?: string;
-  issueType?: string;
+  issueType?: "需求" | "任务" | "缺陷";
 }
 
 export interface GithubTaskMeta {

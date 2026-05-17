@@ -62,51 +62,53 @@ export interface Workitem {
   /** 工作项标题 */
   subject: string;
   /** 工作项描述 */
-  description: string;
+  description?: string;
   /** 描述格式：RICHTEXT 或 MARKDOWN */
-  formatType: string;
+  formatType?: string;
   /** 工作项分类 ID，如 Req、Task、Bug */
-  categoryId: string;
+  categoryId?: string;
+  /** 工作项分类引用 */
+  category?: WorkitemRef;
   /** 工作项编号，如 PROJ-123 */
   serialNumber: string;
   /** 逻辑状态：normal - 正常；archived - 归档 */
-  logicalStatus: string;
+  logicalStatus?: string;
   /** 父工作项 ID */
-  parentId: string;
+  parentId?: string;
   /** 工作项 ID 路径，逗号分隔 */
-  idPath: string;
+  idPath?: string;
   /** 创建时间 */
   gmtCreate: string;
   /** 最后修改时间 */
-  gmtModified: string;
+  gmtModified?: string;
   /** 状态最后更新时间 */
-  updateStatusAt: string;
+  updateStatusAt?: string;
   /** 指派人 */
-  assignedTo: WorkitemUser;
+  assignedTo?: WorkitemUser | null;
   /** 创建人 */
-  creator: WorkitemUser;
+  creator?: WorkitemUser | null;
   /** 最后修改人 */
-  modifier: WorkitemUser;
+  modifier?: WorkitemUser | null;
   /** 验证人 */
-  verifier: WorkitemUser;
+  verifier?: WorkitemUser | null;
   /** 所属空间（项目或项目集） */
   space: WorkitemRef;
   /** 关联迭代 */
-  sprint: WorkitemRef;
+  sprint?: WorkitemRef | null;
   /** 当前状态 */
   status: WorkitemStatus;
   /** 工作项类型 */
-  workitemType: WorkitemRef;
+  workitemType?: WorkitemRef | null;
   /** 标签列表 */
-  labels: WorkitemLabel[];
+  labels?: WorkitemLabel[];
   /** 参与人列表 */
-  participants: WorkitemUser[];
+  participants?: WorkitemUser[];
   /** 跟踪人列表 */
-  trackers: WorkitemUser[];
+  trackers?: WorkitemUser[];
   /** 关联版本列表 */
-  versions: WorkitemRef[];
+  versions?: WorkitemRef[];
   /** 自定义字段值列表 */
-  customFieldValues: CustomFieldValue[];
+  customFieldValues?: CustomFieldValue[];
 }
 
 /** searchWorkitems 请求参数 */
