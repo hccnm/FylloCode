@@ -31,6 +31,7 @@ const ORDER_BY = "gmtCreate";
 const SORT = "desc";
 const PAGE = 1;
 const PER_PAGE = 20;
+const WORKITEM_URL_PREFIX = "https://devops.aliyun.com/projex/project";
 
 const STATUS_IDS_BY_CATEGORY: Record<YunxiaoCategory, string[]> = {
   Req: [
@@ -57,6 +58,14 @@ const ISSUE_TYPE_BY_CATEGORY: Record<YunxiaoCategory, YunxiaoIssueType> = {
   Task: "任务",
   Bug: "缺陷",
 };
+
+export function buildWorkitemUrl(
+  category: YunxiaoCategory,
+  workitem: Pick<Workitem, "id" | "space">
+): string {
+  const path = category === "Req" ? "req" : category === "Task" ? "task" : "bug";
+  return `${WORKITEM_URL_PREFIX}/${workitem.space.id}/${path}/${workitem.id}`;
+}
 
 function buildConditions(category: YunxiaoCategory, yunxiaoUserId: string): string {
   const conditions: SearchCondition[] = [
@@ -153,6 +162,7 @@ function mapToTaskItem(
   const updatedAt = resolveUpdatedAt(workitem, createdAt);
   const sourceMeta: YunxiaoTaskMeta = {
     source: "yunxiao",
+    url: buildWorkitemUrl(category, workitem),
     key: workitem.serialNumber,
     issueType,
   };

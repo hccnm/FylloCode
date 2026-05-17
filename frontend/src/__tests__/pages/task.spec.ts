@@ -197,6 +197,7 @@ describe("task page", () => {
         source: "yunxiao",
         sourceMeta: {
           source: "yunxiao",
+          url: "https://devops.aliyun.com/projex/project/space-1/task/1",
           key: "YX-1",
           issueType: "任务",
         },
@@ -219,10 +220,10 @@ describe("task page", () => {
     expect(wrapper.text()).toContain("云效任务");
   });
 
-  it("builds prompt without empty url placeholder for yunxiao tasks", async () => {
+  it("builds prompt with source url for yunxiao tasks", async () => {
     taskStore.filteredTasks = [
       {
-        id: "yx-1",
+        id: "yunxiao:space-1:102",
         projectId: "project-1",
         title: "云效任务",
         description: "描述",
@@ -230,7 +231,8 @@ describe("task page", () => {
         source: "yunxiao",
         sourceMeta: {
           source: "yunxiao",
-          key: "YX-1",
+          url: "https://devops.aliyun.com/projex/project/space-1/task/102",
+          key: "YX-102",
           issueType: "任务",
         },
         labels: [],
@@ -244,7 +246,9 @@ describe("task page", () => {
     await wrapper.get('[data-test="start-discussion"]').trigger("click");
 
     expect(sendMessageMock).toHaveBeenCalledWith(
-      expect.stringContaining("**来源**: 云效 YX-1\n**标题**: 云效任务")
+      expect.stringContaining(
+        "**来源**: 云效 YX-102 (https://devops.aliyun.com/projex/project/space-1/task/102)\n**标题**: 云效任务"
+      )
     );
     expect(sendMessageMock).not.toHaveBeenCalledWith(expect.stringContaining("()"));
   });

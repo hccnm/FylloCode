@@ -59,4 +59,22 @@ describe("TaskCard", () => {
 
     expect(wrapper.emitted("view-detail")).toBeUndefined();
   });
+
+  it("shows source button for yunxiao tasks when sourceMeta.url exists", () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask({
+          source: "yunxiao",
+          sourceMeta: {
+            source: "yunxiao",
+            url: "https://devops.aliyun.com/projex/project/space-1/task/102",
+            key: "YX-102",
+            issueType: "任务",
+          },
+        }),
+      },
+    });
+
+    expect(wrapper.text()).toContain("任务来源");
+  });
 });

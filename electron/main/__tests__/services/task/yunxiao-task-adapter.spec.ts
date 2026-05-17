@@ -32,6 +32,7 @@ vi.mock("@main/infra/logger", () => ({
 }));
 
 import {
+  buildWorkitemUrl,
   buildSearchWorkitemsParams,
   yunxiaoTaskAdapter,
 } from "@main/services/task/adapters/yunxiao-task-adapter";
@@ -181,10 +182,43 @@ describe("yunxiao-task-adapter", () => {
       },
     });
     expect(result[0]?.labels.map((label) => label.name)).toEqual(["项目一", "需求", "开发中"]);
-    expect(result[0]?.sourceMeta).not.toHaveProperty("url");
+    expect(result[0]?.sourceMeta).toMatchObject({
+      url: "https://devops.aliyun.com/projex/project/space-1/req/101",
+    });
+    expect(result[1]?.sourceMeta).toMatchObject({
+      url: "https://devops.aliyun.com/projex/project/space-1/task/102",
+    });
+    expect(result[2]?.sourceMeta).toMatchObject({
+      url: "https://devops.aliyun.com/projex/project/space-1/bug/103",
+    });
     expect(result[2]?.labels.map((label) => label.name)).toEqual(["项目一", "缺陷", "已打开"]);
     expect(result[2]?.assignee).toBeUndefined();
     expect(result[2]?.updatedAt.toISOString()).toBe("2026-05-10T10:30:00.000Z");
+  });
+
+  it("builds req task and bug urls from workitem space id and workitem id", () => {
+    const reqWorkitem = buildWorkitem("req-workitem-101", {
+      serialNumber: "YX-REQ-101",
+      space: { id: "space-req", name: "需求空间" },
+    });
+    const taskWorkitem = buildWorkitem("task-workitem-102", {
+      serialNumber: "YX-TASK-102",
+      space: { id: "space-task", name: "任务空间" },
+    });
+    const bugWorkitem = buildWorkitem("bug-workitem-103", {
+      serialNumber: "YX-BUG-103",
+      space: { id: "space-bug", name: "缺陷空间" },
+    });
+
+    expect(buildWorkitemUrl("Req", reqWorkitem)).toBe(
+      "https://devops.aliyun.com/projex/project/space-req/req/req-workitem-101"
+    );
+    expect(buildWorkitemUrl("Task", taskWorkitem)).toBe(
+      "https://devops.aliyun.com/projex/project/space-task/task/task-workitem-102"
+    );
+    expect(buildWorkitemUrl("Bug", bugWorkitem)).toBe(
+      "https://devops.aliyun.com/projex/project/space-bug/bug/bug-workitem-103"
+    );
   });
 
   it("keeps successful results when some spaces or categories fail", async () => {

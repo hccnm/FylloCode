@@ -42,7 +42,11 @@ export function getYunxiaoCredentialPreview(): Record<string, string> {
  * 断开云效连接，清除 token 和连接状态
  */
 export function disconnectYunxiao(): void {
-  saveYunxiaoCredentials({ "x-yunxiao-token": undefined, organizationId: undefined });
+  saveYunxiaoCredentials({
+    "x-yunxiao-token": undefined,
+    userId: undefined,
+    organizationId: undefined,
+  });
   disconnectProvider(TOOL_ID);
 }
 

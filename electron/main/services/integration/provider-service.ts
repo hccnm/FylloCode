@@ -86,6 +86,7 @@ export async function connectProvider(
     );
   }
 
+  const currentCredentials = loadCredentials(providerId);
   saveCredentials(providerId, credentials);
 
   try {
@@ -100,12 +101,18 @@ export async function connectProvider(
     });
 
     const organizationId =
-      loadCredentials(providerId)["organizationId"] ||
-      user.lastOrganization ||
-      organizations[0]?.id;
+      currentCredentials["organizationId"] || user.lastOrganization || organizations[0]?.id;
+    const nextCredentials: ProviderCredentials = {
+      ...currentCredentials,
+      ...credentials,
+      userId: user.id,
+    };
     if (organizationId) {
-      saveCredentials(providerId, { ...credentials, organizationId });
+      nextCredentials.organizationId = organizationId;
+    } else {
+      delete nextCredentials.organizationId;
     }
+    saveCredentials(providerId, nextCredentials);
 
     return connection;
   } catch (error) {

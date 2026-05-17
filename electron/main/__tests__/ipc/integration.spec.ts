@@ -117,6 +117,11 @@ describe("registerIntegrationHandlers", () => {
     const connectHandler = handler(IntegrationChannels.providersConnect);
     const probeHandler = handler(IntegrationChannels.providersProbe);
     const disconnectHandler = handler(IntegrationChannels.providersDisconnect);
+    const legacyDisconnectHandler = handler(IntegrationChannels.disconnect);
+    const { loadCredentials } = await import("@main/infra/storage/provider-credential-store");
+    const { getConnection } = await import("@main/infra/storage/provider-connection-store");
+    const { getYunxiaoOrganizationId, getYunxiaoToken, getYunxiaoUserId } =
+      await import("@main/infra/storage/yunxiao-credentials");
 
     const initialList = await listHandler({}, undefined);
     expect(initialList).toEqual({
@@ -156,9 +161,23 @@ describe("registerIntegrationHandlers", () => {
       data: expect.objectContaining({
         providerId: "yunxiao",
         state: "connected",
+        accountId: "user-1",
         accountName: "demo@example.com",
       }),
     });
+    expect(loadCredentials("yunxiao")).toEqual(
+      expect.objectContaining({
+        "x-yunxiao-token": "token-new",
+        userId: "user-1",
+        organizationId: "org-1",
+      })
+    );
+    expect(getConnection("yunxiao")).toEqual(
+      expect.objectContaining({
+        providerId: "yunxiao",
+        accountId: "user-1",
+      })
+    );
 
     const probeResult = await probeHandler({}, { providerId: "yunxiao" });
     expect(probeResult).toEqual({
@@ -170,6 +189,13 @@ describe("registerIntegrationHandlers", () => {
       }),
     });
     expect(mocks.getYunxiaoUser).toHaveBeenCalled();
+
+    await legacyDisconnectHandler({}, { toolId: "yunxiao-projex" });
+    expect(getYunxiaoToken()).toBe("");
+    expect(getYunxiaoUserId()).toBe("");
+    expect(getYunxiaoOrganizationId()).toBe("");
+    expect(loadCredentials("yunxiao")).toEqual({});
+    expect(getConnection("yunxiao")).toBeNull();
   });
 
   it("persists project integration per project without cross-project bleed", async () => {
