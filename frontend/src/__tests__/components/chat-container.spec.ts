@@ -118,7 +118,7 @@ describe("ChatContainer", () => {
 
     const children = wrapper.find(".max-w-240")?.element.children;
     expect(children?.[0]?.getAttribute("data-test")).toBe("message-list");
-    expect(children?.[1]?.getAttribute("data-test")).toBe("stream-error");
+    expect(children?.[1]?.querySelector('[data-test="stream-error"]')).not.toBeNull();
   });
 
   it("hides the previous inline error when a new stream starts or completes", async () => {

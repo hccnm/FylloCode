@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getYunxiaoOrganizationId: vi.fn(() => "org-1"),
   getYunxiaoUserId: vi.fn(() => "user-1"),
   searchWorkitems: vi.fn(),
+  info: vi.fn(),
   warn: vi.fn(),
 }));
 
@@ -25,6 +26,7 @@ vi.mock("@main/domain/integration/yunxiao/projex", () => ({
 
 vi.mock("@main/infra/logger", () => ({
   default: {
+    info: mocks.info,
     warn: mocks.warn,
   },
 }));
