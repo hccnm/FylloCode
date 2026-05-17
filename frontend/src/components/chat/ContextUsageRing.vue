@@ -59,10 +59,10 @@ const tooltipText = computed(() =>
 function formatTokens(value: number): string {
   if (value >= 1_000_000) {
     const m = value / 1_000_000;
-    return `${Number.isInteger(m) ? m : m.toFixed(1)}m`;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
   }
   const k = value / 1000;
-  return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+  return `${Number.isInteger(k) ? k : k.toFixed(1)}K`;
 }
 
 function formatCost(amount: number, currency: string): string {
