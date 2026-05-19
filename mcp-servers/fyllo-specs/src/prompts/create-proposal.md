@@ -1,9 +1,13 @@
 Create or inspect an OpenSpec change using the provided `state`.
 
 **Input**: `targetPath` is required. It must be an absolute path to the main repo root or a
-registered git worktree for that repo. In P1, the agent should default to passing
-`$FYLLO_PROJECT_PATH` (the main repo root). `state.changeName` is the kebab-case name for this
-change.
+registered git worktree for that repo.
+
+- For git projects, prefer the linked worktree absolute path prepared by the chat reminder flow
+  (for example `$FYLLO_PROJECT_PATH/.worktrees/<changeName>`).
+- For non-git projects, pass `$FYLLO_PROJECT_PATH` (the main repo root).
+
+`state.changeName` is the kebab-case name for this change.
 
 **Steps**
 

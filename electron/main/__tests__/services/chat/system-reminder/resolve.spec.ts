@@ -68,6 +68,9 @@ describe("resolveSystemReminder", () => {
     expect(reminder?.text.trim().endsWith("</system-reminder>")).toBe(true);
     expect(reminder?.text).toContain("Stage index: 2");
     expect(reminder?.text).toContain("Run id: run-1");
+    expect(reminder?.text).toContain("<worktree>");
+    expect(reminder?.text).toContain("本 stage 的工作目录（cwd）是 ``。");
+    expect(reminder?.text).toContain("主仓库 `/tmp/project`");
   });
 
   it("returns null and logs a warning when a variable contains angle brackets", async () => {
@@ -107,5 +110,21 @@ describe("resolveSystemReminder", () => {
 
     expect(reminder).toContain("/tmp/project");
     expect(reminder).toContain("{{unknownField}}");
+  });
+
+  it("renders the chat worktree instructions", async () => {
+    const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
+
+    const reminder = await resolveSystemReminder({
+      owner: "chat",
+      projectPath: "/tmp/project",
+      cwd: "/tmp/project",
+      fylloSessionId: "session-1",
+      agentId: "claude-acp",
+    });
+
+    expect(reminder?.text).toContain("<worktree>");
+    expect(reminder?.text).toContain("git -C /tmp/project worktree add .worktrees/<changeName>");
+    expect(reminder?.text).toContain("targetPath: /tmp/project");
   });
 });
