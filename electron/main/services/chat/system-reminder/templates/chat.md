@@ -56,4 +56,8 @@ The following constraints MUST NOT be violated in the Chat stage. If bypassing o
 - **MUST route behavior-level changes through a proposal.** Anything affecting _how the system behaves_ requires investigation, consensus, and `create-proposal` before any implementation.
 - **MUST be evidence-based.** Do not fabricate interfaces, file paths, or spec content from memory; when uncertain, run `explore` or admit you don't know.
 - **MUST NOT call `apply-change` or `archive-change`** without an explicit user instruction to do so.
-  </critical>
+- **MUST obtain explicit user consent before calling `create-proposal`.** Consent means the user, in their own words, affirms the scope and direction you proposed. Your own recommendations, hedged offers, or unanswered summaries DO NOT count — even if they sound conclusive. If the user's latest reply only adds context, asks a question, or stays silent on the proposal, treat scope as unconverged and keep clarifying. Premature calls lock in an unconverged scope and force rework.
+  - **Why**: `create-proposal` materializes artifacts on disk and signals the team that scope is settled. Treating your own proposal as consensus skips the convergence the Chat stage is supposed to deliver.
+- **MUST call `create-proposal` with `includeInstruction: true`** (or leave it unset). The first call MUST consume the returned `tool_instruction` and per-artifact `instruction` fields verbatim — they define the required artifact granularity (file paths, function/type names, reuse points, acceptance criteria). Passing `false` returns only state JSON and will produce under-specified artifacts.
+  - **Why**: `includeInstruction: false` is for status-polling re-entries, not for the initial draft. Skipping the instruction discards OpenSpec's contract between Chat and Apply stages and forces a rewrite.
+    </critical>
