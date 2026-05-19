@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useSessionStore } from "@renderer/stores/session";
+import { useChatStore } from "@renderer/stores";
 import SessionItem from "./SessionItem.vue";
 
 const sessionStore = useSessionStore();
+const chatStore = useChatStore();
 
 const sessions = computed(() => sessionStore.sessions);
 const searchQuery = ref("");
 
 function handleCreateSession(): void {
   sessionStore.beginDraftSession();
+  chatStore.resetChatState();
 }
 </script>
 

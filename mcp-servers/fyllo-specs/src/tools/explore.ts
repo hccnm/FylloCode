@@ -16,7 +16,7 @@ const exploreInputSchema = z.object({
     .optional()
     .default(true)
     .describe(
-      "Set to false to omit the skill instruction text and return only the state JSON. Useful when the agent already knows the workflow."
+      "Defaults to true; keep true on the first call. The instruction text encodes the explore workflow contract (how to interpret active changes, when to escalate to create-proposal, what counts as enough investigation) that cannot be reconstructed from prior knowledge. Only pass false for follow-up state-polling calls within the same run, after the instruction has already been read and acted on."
     ),
 });
 

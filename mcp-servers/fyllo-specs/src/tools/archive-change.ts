@@ -20,7 +20,7 @@ const archiveChangeInputSchema = z.object({
     .optional()
     .default(true)
     .describe(
-      "Set to false to omit the skill instruction text and return only the state JSON. Useful when the agent already knows the workflow."
+      "Defaults to true; keep true on the first call of a run. The instruction text encodes the archive workflow contract (sync → archive → commit ordering, conflict handling, commit-message format, reporting requirements) that cannot be reconstructed from prior knowledge — omitting it risks reordered or partial archive operations. Only pass false for follow-up state-polling calls within the same run, after the instruction has already been read and acted on."
     ),
 });
 

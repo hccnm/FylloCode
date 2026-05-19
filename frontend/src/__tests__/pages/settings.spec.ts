@@ -23,9 +23,26 @@ const settingsPreferencesStub = {
   template: '<div data-test="settings-preferences">preferences</div>',
 };
 
+const settingsAboutStub = {
+  template: '<div data-test="settings-about">about</div>',
+};
+
 const settingsIntegrationProvidersStub = {
   template: '<div data-test="settings-integration-providers">integration providers</div>',
 };
+
+function mountSettingsPage(): ReturnType<typeof mount> {
+  return mount(SettingsPage, {
+    global: {
+      stubs: {
+        SettingsAgents: settingsAgentsStub,
+        SettingsAbout: settingsAboutStub,
+        SettingsPreferences: settingsPreferencesStub,
+        SettingsIntegrationProviders: settingsIntegrationProvidersStub,
+      },
+    },
+  });
+}
 
 describe("settings page", () => {
   beforeEach(() => {
@@ -33,50 +50,36 @@ describe("settings page", () => {
     route.query = {};
   });
 
-  it("renders the integration providers tab from query", async () => {
+  it("renders the about tab from query", async () => {
     route.query = {
-      tab: "integration-providers",
+      tab: "about",
       focus: "yunxiao",
     };
 
-    const wrapper = mount(SettingsPage, {
-      global: {
-        stubs: {
-          SettingsAgents: settingsAgentsStub,
-          SettingsPreferences: settingsPreferencesStub,
-          SettingsIntegrationProviders: settingsIntegrationProvidersStub,
-        },
-      },
-    });
+    const wrapper = mountSettingsPage();
 
     await nextTick();
 
-    expect(wrapper.find('[data-test="settings-integration-providers"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="settings-about"]').exists()).toBe(true);
   });
 
-  it("preserves focus query when switching tabs", async () => {
+  it("preserves focus query when switching to about", async () => {
     route.query = {
       tab: "integration-providers",
       focus: "yunxiao",
     };
 
-    const wrapper = mount(SettingsPage, {
-      global: {
-        stubs: {
-          SettingsAgents: settingsAgentsStub,
-          SettingsPreferences: settingsPreferencesStub,
-          SettingsIntegrationProviders: settingsIntegrationProvidersStub,
-        },
-      },
-    });
+    const wrapper = mountSettingsPage();
 
-    const buttons = wrapper.findAll("button");
-    await buttons[2].trigger("click");
+    const aboutButton = wrapper.findAll("button").find((button) => button.text().includes("About"));
+
+    expect(aboutButton).toBeTruthy();
+    await aboutButton!.trigger("click");
 
     expect(replaceMock).toHaveBeenCalledWith({
       path: "/settings",
       query: {
-        tab: "preferences",
+        tab: "about",
         focus: "yunxiao",
       },
     });

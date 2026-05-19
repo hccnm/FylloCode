@@ -39,3 +39,11 @@ export interface PreferencesConfig {
   tokenStatsPeriod: TokenStatsPeriod;
   budgetAlert: BudgetAlert;
 }
+
+export type AppAboutInfo = Readonly<{
+  version: string;
+  releaseChannel: string;
+  copyright: string;
+  repositoryUrl: string;
+  feedbackUrl: string;
+}>;
