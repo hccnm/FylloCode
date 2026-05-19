@@ -1,42 +1,42 @@
 ## 1. archive prompt 文案精简
 
-- [ ] 1.1 修改 `electron/main/services/proposal/stage-prompts.ts`：把 `stageRunners["proposal-archive"]` 的实现从 `({ changeId }) => \`归档 ${changeId} 并提交代码\``改为`({ changeId }) => \`归档 ${changeId}\``。
-- [ ] 1.2 检查并更新 `electron/main/__tests__/ipc/proposal-apply.spec.ts`（line 79 附近 mock `buildArchiveStage`）：如果存在对 archive prompt 文本的断言，同步改为新文案；如果断言不涉及 prompt 文本，本步骤无需修改测试。
-- [ ] 1.3 在 `electron/main/services/proposal/__tests__/`（如不存在则建）创建/补充 `stage-prompts.spec.ts`，断言：
+- [x] 1.1 修改 `electron/main/services/proposal/stage-prompts.ts`：把 `stageRunners["proposal-archive"]` 的实现从 `({ changeId }) => \`归档 ${changeId} 并提交代码\``改为`({ changeId }) => \`归档 ${changeId}\``。
+- [x] 1.2 检查并更新 `electron/main/__tests__/ipc/proposal-apply.spec.ts`（line 79 附近 mock `buildArchiveStage`）：如果存在对 archive prompt 文本的断言，同步改为新文案；如果断言不涉及 prompt 文本，本步骤无需修改测试。
+- [x] 1.3 在 `electron/main/services/proposal/__tests__/`（如不存在则建）创建/补充 `stage-prompts.spec.ts`，断言：
   - `buildStagePrompt({ stage: { type: "proposal-archive" }, changeId: "foo", projectPath: "/x" })` 返回字符串严格等于 `归档 foo`。
   - 该字符串不含 `提交代码` / `merge` / `worktree` / `commit` 子串。
-- [ ] 1.4 验收：`pnpm typecheck` 通过；`pnpm test electron/main` 全过。
+- [x] 1.4 验收：`pnpm typecheck` 通过；`pnpm test electron/main` 全过。
 
 ## 2. archive.txt 模板新增 worktree 段
 
-- [ ] 2.1 修改 `electron/main/services/chat/system-reminder/templates/archive.txt`：在现有 `</context>` 闭合标签之后、`<rules>` 开始标签之前，插入完整的 `<worktree>` 段，内容严格按 design.md "archive.txt `<worktree>` 段（设计文本）" 节写入。
-- [ ] 2.2 文本必须含三个占位符：`{{worktreePath}}`、`{{mainProjectPath}}`、`{{changeId}}`。分支名以 `proposal/{{changeId}}` 字面量出现，不引入 `branchName` 占位符。
-- [ ] 2.3 文本第 1 段必须明确：`{{worktreePath}}` 为空字符串时跳过整段 4 步 git 编排，仅按 `<rules>` 完成 archive-change + 业务代码 commit。
-- [ ] 2.4 文本必须依次写出：
+- [x] 2.1 修改 `electron/main/services/chat/system-reminder/templates/archive.txt`：在现有 `</context>` 闭合标签之后、`<rules>` 开始标签之前，插入完整的 `<worktree>` 段，内容严格按 design.md "archive.txt `<worktree>` 段（设计文本）" 节写入。
+- [x] 2.2 文本必须含三个占位符：`{{worktreePath}}`、`{{mainProjectPath}}`、`{{changeId}}`。分支名以 `proposal/{{changeId}}` 字面量出现，不引入 `branchName` 占位符。
+- [x] 2.3 文本第 1 段必须明确：`{{worktreePath}}` 为空字符串时跳过整段 4 步 git 编排，仅按 `<rules>` 完成 archive-change + 业务代码 commit。
+- [x] 2.4 文本必须依次写出：
   - 1. commit OpenSpec 归档移动（`git -C {{worktreePath}} add -A && commit`）
   - 2. merge --ff-only 进 main（`git -C {{mainProjectPath}} merge --ff-only proposal/{{changeId}}`）
   - 3. worktree remove（`git -C {{mainProjectPath}} worktree remove {{worktreePath}}`）
   - 4. branch delete（`git -C {{mainProjectPath}} branch -d proposal/{{changeId}}`）
-- [ ] 2.5 每步必须明确"失败时把 stderr 完整复述给用户、不自动重试、不加 force"。
+- [x] 2.5 每步必须明确"失败时把 stderr 完整复述给用户、不自动重试、不加 force"。
 
 ## 3. archive.txt 模板 critical 段扩展
 
-- [ ] 3.1 修改 `archive.txt` 的 `<critical priority="must-not-violate">` 段：把原有第一条 `MUST follow the order: sync → archive → commit. No reordering, no skipping.` 改为 `MUST follow the order: sync → archive → commit → merge → worktree-cleanup. No reordering, no skipping. Steps 4–5 only when `{{worktreePath}}` is non-empty.`
-- [ ] 3.2 在 `<critical>` 段中追加以下新 SHALL 条款（保留原有所有其他 SHALL）：
+- [x] 3.1 修改 `archive.txt` 的 `<critical priority="must-not-violate">` 段：把原有第一条 `MUST follow the order: sync → archive → commit. No reordering, no skipping.` 改为 `MUST follow the order: sync → archive → commit → merge → worktree-cleanup. No reordering, no skipping. Steps 4–5 only when `{{worktreePath}}` is non-empty.`
+- [x] 3.2 在 `<critical>` 段中追加以下新 SHALL 条款（保留原有所有其他 SHALL）：
   - `MUST run merge as `git merge --ff-only`` and stop on failure (no force, no auto普通 merge fallback).`
   - `MUST clean up worktree only after merge succeeds.` worktree remove without successful merge would lose the archive commit.`
   - `MUST NOT use `worktree remove --force`/`branch -D`.` Failure stderr goes to the user; the user decides force.`
-- [ ] 3.3 验收：`<critical>` 段总条款数（既有 + 新增）= 既有 + 3；既有的 commit subject 格式 / commit only change-related files / 不能 bypass MCP / `archive-change` 必须传 `includeInstruction: true` 等条款全部保留。
+- [x] 3.3 验收：`<critical>` 段总条款数（既有 + 新增）= 既有 + 3；既有的 commit subject 格式 / commit only change-related files / 不能 bypass MCP / `archive-change` 必须传 `includeInstruction: true` 等条款全部保留。
 
 ## 4. 模板渲染单测扩展
 
-- [ ] 4.1 在 P2 已建的 `electron/main/services/chat/system-reminder/providers/__tests__/`（或同路径下新建 archive-specific 测试文件）追加用例：
+- [x] 4.1 在 P2 已建的 `electron/main/services/chat/system-reminder/providers/__tests__/`（或同路径下新建 archive-specific 测试文件）追加用例：
   - 4.1.1 archive owner 渲染：传入 `worktreePath: "/abs/.worktrees/foo"`、`projectPath: "/abs"`、`changeId: "foo"` → 渲染后文本含 `<worktree>` 段、含字面量 `/abs/.worktrees/foo` 与 `proposal/foo` 字符串。
   - 4.1.2 archive owner 渲染：传入 `worktreePath: undefined` → 渲染后 `{{worktreePath}}` 替换为空字符串；文本仍含 `<worktree>` 段；段开头能找到"为空字符串时跳过 git 编排"的中文叙述。
   - 4.1.3 archive owner 渲染：`{{mainProjectPath}}` 与 `{{projectPath}}` 应渲染为同一字符串。
   - 4.1.4 archive owner 渲染：`changeId` 含特殊字符（如下划线）时占位符正常替换；`{{changeId}}` 与 `proposal/{{changeId}}` 都按规则渲染。
   - 4.1.5 任一字段含 `<` 或 `>` 字符时 `renderSystemReminderTemplate` 返回 `null`、`logger.warn` 被调用。
-- [ ] 4.2 验收：上述 5 条用例全过；`pnpm test electron/main/services/chat/system-reminder` 全过。
+- [x] 4.2 验收：上述 5 条用例全过；`pnpm test electron/main/services/chat/system-reminder` 全过。
 
 ## 5. dogfood 与零回归验证
 
@@ -69,8 +69,8 @@
 
 ## 6. 文档与实施顺序对齐
 
-- [ ] 6.1 检查 `mcp-servers/fyllo-specs/src/prompts/archive-change.md`：当前 `tool_instruction` 的"sync 主 spec → archive 文件移动 → 报告状态"约束是否已经清晰。如不清晰，补一句"git commit / merge / worktree-cleanup 由 archive system-reminder 编排，不在本工具内执行"，避免 agent 混淆 MCP 边界。
-- [ ] 6.2 验收：`mcp-servers/fyllo-specs/__tests__/prompts.test.ts` 仍通过（如断言 prompt 文本片段，则同步更新断言）。
+- [x] 6.1 检查 `mcp-servers/fyllo-specs/src/prompts/archive-change.md`：当前 `tool_instruction` 的"sync 主 spec → archive 文件移动 → 报告状态"约束是否已经清晰。如不清晰，补一句"git commit / merge / worktree-cleanup 由 archive system-reminder 编排，不在本工具内执行"，避免 agent 混淆 MCP 边界。
+- [x] 6.2 验收：`mcp-servers/fyllo-specs/__tests__/prompts.test.ts` 仍通过（如断言 prompt 文本片段，则同步更新断言）。
 
 ## 7. 验收总闸
 

@@ -65,6 +65,7 @@ All artifacts complete. All tasks complete.
 **Guardrails**
 
 - Do not invoke the OpenSpec CLI or shell archive commands directly. Archive operations are handled by this MCP server via `confirm: true`.
+- Git commit / merge / worktree-cleanup are orchestrated by the archive system-reminder, not by this tool.
 - Don't block archive on warnings — just inform and confirm
 - If `state.conflicts` is non-empty, do NOT proceed with `confirm: true` — report the conflict instead
 - If `state.archiveRawOutput` is available, prefer it over inference when describing the actual archive result
