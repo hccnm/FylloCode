@@ -62,35 +62,39 @@ FylloCode connects to any Coding Agent through the [Agent Client Protocol](https
 
 <!-- TODO: screenshot of agent selection -->
 
+![FylloCode-ACP](docs/screenshot/acp-registry.png)
+
 ### System Reminders
 
 Each workflow stage injects a system reminder that constrains what the Agent can and cannot do. In Chat, the Agent is instructed to explore and propose, not code. In Apply, it follows the approved task list. This isn't a suggestion — it's a hard boundary enforced at session start.
 
-<!-- TODO: screenshot of chat with system reminder -->
+![FylloCode-ACP](docs/screenshot/chat.png)
 
 ### Task Panel
 
 View and manage tasks from your local list or synced from external platforms. Tasks serve as the entry point to the entire workflow — select a task, start a Chat, and the Agent begins with full context.
 
-<!-- TODO: screenshot of task panel -->
+![FylloCode-ACP](docs/screenshot/task.png)
 
 ### Integration with Development Platforms
 
 Connect to platforms like Yunxiao (Alibaba Cloud DevOps) at the provider level — one authentication, multiple tools across task management, source code, and CI/CD. More platform integrations (GitHub, TAPD, Jira, etc.) are planned.
 
-<!-- TODO: screenshot of integration settings -->
+![FylloCode-ACP](docs/screenshot/integration-provider.png)
 
 ### Workflow Editor
 
 Define and customize multi-stage workflows. Built-in templates get you started; edit the YAML to fit your team's process.
 
-<!-- TODO: screenshot of workflow editor -->
+![FylloCode-ACP](docs/screenshot/workflow.png)
 
 ### OpenSpec-Driven Proposals
 
 Proposals are structured artifacts — not chat messages. Each proposal contains a design document, spec changes, and a concrete task list with file paths and acceptance criteria. The built-in `fyllo-specs` MCP server manages the full lifecycle: explore → create-proposal → apply-change → archive-change.
 
-<!-- TODO: screenshot of proposal detail -->
+![FylloCode-ACP](docs/screenshot/proposal-list.png)
+
+![FylloCode-ACP](docs/screenshot/proposal-detail.png)
 
 ## Quick Start
 
@@ -122,13 +126,14 @@ pnpm dev
 3. Head to the **Task** panel, create a task, and click to start a Chat.
 4. The Agent will explore your codebase and produce a proposal. Review it, then run Apply.
 
-## Roadmap
+## Todo
 
-- [ ] GitHub / GitLab integration (Issues, PRs, Actions)
-- [ ] TAPD, Jira, Linear integration
+- [ ] More integration(TAPD, Jira, Linear, Github)
 - [ ] Auto-update
-- [ ] Workflow template sharing
 - [ ] i18n (English UI)
+- [ ] Auto build guidelines
+- [ ] Git linked workspace for task apply
+- [ ] More ACP Agent control
 
 ## Built With
 

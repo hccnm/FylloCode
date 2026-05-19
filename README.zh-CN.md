@@ -61,35 +61,39 @@ FylloCode 通过 [Agent Client Protocol](https://github.com/anthropics/agent-cli
 
 <!-- TODO: Agent 选择截图 -->
 
-### System Reminder
+![FylloCode-ACP](docs/screenshot/acp-registry.png)
+
+### System Reminders
 
 每个工作流阶段会注入 system reminder，约束 Agent 能做和不能做的事。对话阶段，Agent 被指示去探索和提案，而不是写代码；执行阶段，它只按已批准的任务列表走。这不是建议——是在 session 启动时强制执行的硬边界。
 
-<!-- TODO: 对话界面截图 -->
+![FylloCode-ACP](docs/screenshot/chat.png)
 
 ### 任务面板
 
 查看和管理本地任务，或展示从外部平台同步的工作项。任务是整个工作流的入口——选中任务，发起对话，Agent 带着完整上下文开始工作。
 
-<!-- TODO: 任务面板截图 -->
+![FylloCode-ACP](docs/screenshot/task.png)
 
 ### 开发平台集成
 
 以 Provider 为单位连接平台（如云效）——一次认证，任务管理、源码管理、CI/CD 等多个工具全部可用。更多平台集成（GitHub、TAPD、Jira 等）在路线图中。
 
-<!-- TODO: 集成设置截图 -->
+![FylloCode-ACP](docs/screenshot/integration-provider.png)
 
 ### 工作流编辑器
 
 定义和自定义多阶段工作流。内置模板开箱即用，也可以编辑 YAML 适配你的团队流程。
 
-<!-- TODO: 工作流编辑器截图 -->
+![FylloCode-ACP](docs/screenshot/workflow.png)
 
 ### OpenSpec 驱动的提案
 
 提案是结构化的产物，不是聊天消息。每个提案包含设计文档、规格变更和具体的任务列表（文件路径、验收标准）。内置的 `fyllo-specs` MCP server 管理完整的生命周期：explore → create-proposal → apply-change → archive-change。
 
-<!-- TODO: 提案详情截图 -->
+![FylloCode-ACP](docs/screenshot/proposal-list.png)
+
+![FylloCode-ACP](docs/screenshot/proposal-detail.png)
 
 ## 快速开始
 
@@ -121,13 +125,14 @@ pnpm dev
 3. 切换到 **任务** 面板，创建一个任务，点击发起对话。
 4. Agent 会探索你的代码库并生成提案。审查后，运行执行。
 
-## 路线图
+## Todo
 
-- [ ] GitHub / GitLab 集成（Issues、PR、Actions）
-- [ ] TAPD、Jira、Linear 集成
-- [ ] 自动更新
-- [ ] 工作流模板共享
-- [ ] 国际化（英文界面）
+- [ ] More integration(TAPD, Jira, Linear, Github)
+- [ ] Auto-update
+- [ ] i18n (English UI)
+- [ ] Auto build guidelines
+- [ ] Git linked workspace for task apply
+- [ ] More ACP Agent control
 
 ## 技术栈
 
