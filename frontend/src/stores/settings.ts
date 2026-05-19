@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import type { PreferencesConfig } from "@shared/types/settings";
+import { settingsApi } from "@renderer/api/settings";
+import type { AppAboutInfo, PreferencesConfig } from "@shared/types/settings";
 
 const defaultPreferences: PreferencesConfig = {
   theme: "system",
@@ -14,6 +15,11 @@ const defaultPreferences: PreferencesConfig = {
 
 export const useSettingsStore = defineStore("settings", () => {
   const preferences = ref<PreferencesConfig>({ ...defaultPreferences });
+  const aboutInfo = ref<AppAboutInfo | null>(null);
+  const aboutInfoLoading = ref(false);
+  const aboutInfoError = ref<string | null>(null);
+  const aboutInfoLoaded = ref(false);
+  let aboutInfoPromise: Promise<void> | null = null;
 
   function updatePreference<K extends keyof PreferencesConfig>(
     key: K,
@@ -26,9 +32,49 @@ export const useSettingsStore = defineStore("settings", () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 300));
   }
 
+  async function ensureAboutInfoLoaded(): Promise<void> {
+    if (aboutInfoLoaded.value) {
+      return;
+    }
+
+    if (aboutInfoPromise) {
+      return aboutInfoPromise;
+    }
+
+    aboutInfoPromise = (async () => {
+      aboutInfoLoading.value = true;
+      aboutInfoError.value = null;
+
+      try {
+        const result = await settingsApi.getAppInfo();
+        if (!result.ok) {
+          throw new Error(result.error.message);
+        }
+
+        aboutInfo.value = result.data;
+        aboutInfoLoaded.value = true;
+      } catch (error) {
+        aboutInfo.value = null;
+        aboutInfoError.value = error instanceof Error ? error.message : String(error);
+      } finally {
+        aboutInfoLoading.value = false;
+      }
+    })();
+
+    try {
+      await aboutInfoPromise;
+    } finally {
+      aboutInfoPromise = null;
+    }
+  }
+
   return {
     preferences,
+    aboutInfo,
+    aboutInfoLoading,
+    aboutInfoError,
     updatePreference,
     clearAllHistory,
+    ensureAboutInfoLoaded,
   };
 });

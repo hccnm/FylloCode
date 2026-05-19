@@ -10,13 +10,15 @@ import type { netApi } from "./api/net";
 import type { workflowApi } from "./api/workflow";
 import type { taskApi } from "./api/task";
 
+type SettingsApi = typeof settingsApi;
+
 export interface AppApi {
   chat: typeof chatApi;
   project: typeof projectApi;
   proposal: typeof proposalApi;
   integration: typeof integrationApi;
   acpAgents: typeof acpAgentsApi;
-  settings: typeof settingsApi;
+  settings: SettingsApi;
   window: typeof windowApi;
   net: typeof netApi;
   workflow: typeof workflowApi;
