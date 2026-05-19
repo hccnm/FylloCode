@@ -17,7 +17,7 @@ const applyChangeInputSchema = z.object({
     .optional()
     .default(true)
     .describe(
-      "Set to false to omit the skill instruction text and return only the state JSON. Useful when the agent already knows the workflow."
+      "Defaults to true; keep true on the first call of a run. The instruction text encodes the apply workflow contract (which artifacts to read, the order, how to pick the next task, and how to update tasks.md) that cannot be reconstructed from prior knowledge — omitting it loses the per-task constraints. Only pass false for follow-up state-polling calls within the same run, after the instruction has already been read and acted on."
     ),
 });
 
