@@ -59,6 +59,7 @@ const assistantAvatar = computed(() => {
       :status="status"
       :user="userAvatar"
       :assistant="assistantAvatar"
+      :ui="{ indicator: '*:bg-accented' }"
     >
       <template #content="{ message }">
         <template
