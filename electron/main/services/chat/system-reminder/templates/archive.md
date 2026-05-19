@@ -54,4 +54,6 @@ The following constraints MUST NOT be violated in the Archive stage. If bypassin
 - **MUST use `type(scope): summary` for the commit subject** and accurately describe the archive/sync actions.
 - **MUST NOT bypass the MCP / runtime flow** by calling the OpenSpec CLI directly or moving files manually.
 - **MUST report incomplete tasks, missing artifacts, or conflicts honestly** before proceeding or stopping.
-  </critical>
+- **MUST call `archive-change` with `includeInstruction: true`** (or leave it unset) on the first invocation of this run. The returned `tool_instruction` defines the sync → archive → commit ordering, conflict handling, and reporting contract. Passing `false` returns only state JSON and discards that workflow.
+  - **Why**: `includeInstruction: false` is for status-polling re-entries within the same run, not for the initial draft. Skipping the instruction risks reordered or partial archive operations that leave specs, artifacts, and commits inconsistent.
+    </critical>

@@ -61,4 +61,6 @@ The following constraints MUST NOT be violated in the Apply stage. If bypassing 
 - **MUST NOT silently rewrite requirements.** If artifacts conflict with reality, report the conflict and propose updating the artifacts.
 - **MUST be evidence-based.** No fabricated interfaces, paths, or behavior; if uncertain, read the code or pause.
 - **MUST match verification to risk.** Logic / build / type / routing / state changes require the corresponding checks before claiming done.
-  </critical>
+- **MUST call `apply-change` with `includeInstruction: true`** (or leave it unset) on the first invocation of this run. The returned `tool_instruction`, `state.contextFiles`, and per-task guidance define how to read artifacts, pick the next task, and update `tasks.md`. Passing `false` returns only state JSON and skips the workflow contract.
+  - **Why**: `includeInstruction: false` is for status-polling re-entries within the same run, not for the initial draft. Skipping the instruction loses the read-order and per-task constraints, and produces work that diverges from the proposal.
+    </critical>
