@@ -11,9 +11,7 @@ Your job in this stage is to turn an already-agreed proposal into code, one task
 </context>
 
 <worktree>
-本 stage 的工作目录（cwd）是 `{{worktreePath}}`。若该字符串为空，表示当前 stage 的 cwd 是主仓库 `{{mainProjectPath}}`（旧 ApplyRunMeta 或 worktree 编排尚未启用的项目）。
-
-业务代码改动产生的 commit 由你（agent）自己完成；archive 阶段不会替你 commit 业务代码。在准备进入 archive 之前，请确保 `git status` 工作区 clean（OpenSpec tasks.md 的勾选除外，那是工具进度）。
+本 stage 的工作目录（cwd）是 `{{worktreePath}}`。若该字符串为空，表示当前 stage 的 cwd 是主仓库 `{{mainProjectPath}}`。
 </worktree>
 
 <rules>

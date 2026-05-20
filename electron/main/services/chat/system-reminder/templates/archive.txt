@@ -13,17 +13,17 @@ Your job is to keep the archive result, the spec state, and the commit history m
 <worktree>
 本 archive run 的工作目录（cwd）是 `{{worktreePath}}`。
 
-如果 `{{worktreePath}}` 为空字符串（典型场景：非 git 项目，或 ApplyRunMeta 是 P3 启用前创建），跳过本段全部 git 编排，仅按 `<rules>` 完成 archive-change 文件移动 + 业务代码 commit 即可。本 archive 不需要 merge / worktree remove / branch delete。
+如果 `{{worktreePath}}` 为空字符串（典型场景：非 git 项目），跳过本段全部 git 编排，仅按 `<rules>` 完成 archive-change 文件移动 + 业务代码 commit 即可。本 archive 不需要 merge / worktree remove / branch delete。
 
-如果 `{{worktreePath}}` 非空，archive-change 完成 OpenSpec 文件移动后，按以下顺序完成 4 步 git 收尾：
+如果 `{{worktreePath}}` 非空，执行以下命令时需要指定一个安全目录如`/private/tmp`（由于包含 worktree remove 操作，会导致命令默认cwd失效）。archive-change 完成 OpenSpec 文件移动后，按以下顺序完成 4 步 git 收尾：
 
 1. **commit OpenSpec 归档移动**（含归档目录新增 + 主 spec 同步）：
    `git -C {{worktreePath}} add -A && git -C {{worktreePath}} commit -m "<commit message>"`
-   commit message 仍按 `<rules>` 与 `<critical>` 段已规定的 `type(scope): summary` 模板。`scope` 用 `openspec`，`summary` 简明描述本次归档（例 `archive {{changeId}}`）；下方可选 bullet 列表概括 sync / archive 关键动作。失败时把 stderr 完整复述给用户，不自动重试。
+   commit message 仍按 `<rules>` 与 `<critical>` 段已规定的 `type(scope): summary` 模板。失败时把 stderr 完整复述给用户。
 
 2. **fast-forward merge 进 main**：
    `git -C {{mainProjectPath}} merge --ff-only proposal/{{changeId}}`
-   失败（典型："Not possible to fast-forward"）时把 stderr 完整复述给用户，请用户决定 rebase 或普通 merge；不要自行 fall back，不要 force，不自动重试。
+   失败（典型："Not possible to fast-forward"）时把 stderr 完整复述给用户，请用户决定 rebase 或普通 merge；不要自行 fall back，不要 force。
 
 3. **移除 worktree**：
    `git -C {{mainProjectPath}} worktree remove {{worktreePath}}`
@@ -31,9 +31,7 @@ Your job is to keep the archive result, the spec state, and the commit history m
 
 4. **删除 worktree 分支**：
    `git -C {{mainProjectPath}} branch -d proposal/{{changeId}}`
-   失败（典型：分支未完全合并）时把 stderr 完整复述给用户；不要自行 `-D` 强删，不自动重试。
-
-任一步失败时，archive ACP session 不终止，agent 仍可在后续轮次中根据用户的进一步指示重试或调整。但**不**自动重试。
+   失败（典型：分支未完全合并）时把 stderr 完整复述给用户；不要自行 `-D` 强删。
 </worktree>
 
 <rules>

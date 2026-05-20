@@ -150,7 +150,7 @@ describe("SessionItem", () => {
       },
     });
 
-    expect(wrapper.get('[data-test="session-agent-icon-slot"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="session-agent-icon-slot"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="session-agent-icon"]').exists()).toBe(false);
     expect(wrapper.text()).toContain("Long session title");
     expect(wrapper.text()).toContain("4 turns");
