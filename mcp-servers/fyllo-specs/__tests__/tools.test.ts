@@ -347,16 +347,33 @@ describe("tools", () => {
   });
 
   it("apply-change returns ready for the active change", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const changeName = "test-apply-ready";
+    const changeRoot = join(root, "openspec", "changes", changeName);
+    const specRoot = join(changeRoot, "specs", "example-capability");
+
+    mkdirSync(specRoot, { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    writeFileSync(
+      join(changeRoot, ".openspec.yaml"),
+      "schema: spec-driven\nstatus: proposed\n",
+      "utf8"
+    );
+    writeFileSync(join(changeRoot, "proposal.md"), "# Proposal\n", "utf8");
+    writeFileSync(join(changeRoot, "design.md"), "# Design\n", "utf8");
+    writeFileSync(join(changeRoot, "tasks.md"), "- [ ] implement something\n", "utf8");
+    writeFileSync(join(specRoot, "spec.md"), "## ADDED Requirements\n", "utf8");
+
     const prev = process.env.FYLLO_PROJECT_PATH;
     const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
-    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    process.env.FYLLO_PROJECT_PATH = root;
     process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
     try {
       const text = await applyChangeTool({
-        changeName: "upgrade-fyllo-specs-workspace",
-        targetPath: repoRoot,
+        changeName,
+        targetPath: root,
       });
-      expect(text).toContain('"changeName": "upgrade-fyllo-specs-workspace"');
+      expect(text).toContain(`"changeName": "${changeName}"`);
       expect(text).toContain('"applyState": "ready"');
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);

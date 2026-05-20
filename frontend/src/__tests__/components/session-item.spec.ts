@@ -177,7 +177,7 @@ describe("SessionItem", () => {
     const indicator = media.get('[data-test="session-running-indicator"]');
 
     expect(media.classes().some((className) => className.includes("ring-success"))).toBe(false);
-    expect(indicator.classes()).not.toContain("animate-pulse");
+    expect(indicator.classes()).toContain("animate-pulse");
     expect(wrapper.find('[data-test="session-status"]').exists()).toBe(false);
   });
 });

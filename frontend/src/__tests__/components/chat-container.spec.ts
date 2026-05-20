@@ -116,7 +116,7 @@ describe("ChatContainer", () => {
       "The stream disconnected unexpectedly"
     );
 
-    const children = wrapper.find(".max-w-240")?.element.children;
+    const children = wrapper.get(".max-w-3xl").element.children;
     expect(children?.[0]?.getAttribute("data-test")).toBe("message-list");
     expect(children?.[1]?.querySelector('[data-test="stream-error"]')).not.toBeNull();
   });
