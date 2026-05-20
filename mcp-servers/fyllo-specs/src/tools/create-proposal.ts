@@ -1,8 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import path from "path";
 import { z } from "zod";
 import { runTool } from "../utils/state";
-import { createChange, computeStatus, getInstructions } from "../openspec-runtime";
+import { createChange, computeStatus, getInstructions } from "../runtime-openspec";
 import { validateTargetPath } from "../utils/project-root";
+import { prepareProposalWorkspace } from "../runtime-workspace";
 
 const createProposalInputSchema = z.object({
   changeName: z
@@ -10,10 +12,14 @@ const createProposalInputSchema = z.object({
     .describe(
       "Kebab-case name for the change (e.g. 'add-user-auth'). Derive this from the user's intent before calling — ask the user what they want to build first if it isn't already clear."
     ),
-  targetPath: z
-    .string()
-    .min(1)
-    .describe("Absolute path to the project root or a registered git worktree."),
+  targetPath: z.string().min(1).describe("Absolute path to the main project root."),
+  workspaceMode: z
+    .enum(["linked", "main"])
+    .optional()
+    .default("linked")
+    .describe(
+      'Whether to prepare this proposal in a linked worktree or directly in the main workspace. Defaults to "linked"; pass "main" only when the user explicitly requests main workspace work.'
+    ),
   includeInstruction: z
     .boolean()
     .optional()
@@ -36,10 +42,20 @@ export async function createProposalTool(
       throw error;
     }
 
-    const projectRoot = result.resolved;
+    const mainProjectPath = result.resolved;
+    const expectedMainPath = path.resolve((process.env.FYLLO_PROJECT_PATH ?? mainProjectPath)!);
+    if (mainProjectPath !== expectedMainPath) {
+      throw new Error("targetPath must be the main project root for create-proposal");
+    }
     if (!/^[a-z0-9][a-z0-9-]*$/.test(input.changeName)) {
       throw new Error("changeName must be kebab-case");
     }
+    const { workspace, warnings } = await prepareProposalWorkspace({
+      mainProjectPath,
+      changeName: input.changeName,
+      workspaceMode: input.workspaceMode,
+    });
+    const projectRoot = workspace.path;
     await createChange(projectRoot, input.changeName);
 
     const status = await computeStatus(projectRoot, input.changeName);
@@ -55,12 +71,14 @@ export async function createProposalTool(
     const nextArtifact = artifacts.find((artifact) => artifact.status !== "done") ?? null;
     return {
       changeName: input.changeName,
+      workspace,
       schemaName: status.schemaName,
       applyRequires: status.applyRequires,
       artifacts,
       template: nextArtifact?.template ?? null,
       instruction: nextArtifact?.instruction ?? null,
       nextArtifact: nextArtifact?.id ?? null,
+      warnings,
     };
   });
 }

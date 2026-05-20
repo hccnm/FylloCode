@@ -48,26 +48,20 @@ You are currently in the **Chat stage** (the first of the three). Your job is to
 - When you cannot decisively answer that question after consulting specs, code, and existing changes, treat scope as unconverged and confirm with the user before deciding.
 </rules>
 
-<worktree>
-当用户同意提议（propose）后，按以下顺序为本次 change 创建独立的 git linked worktree：
+<workspace>
+## Workspace Policy
 
-1. 自检主仓库是否为 git 仓库：`git -C {{mainProjectPath}} rev-parse --is-inside-work-tree`。失败（非 git 项目）则跳过本段，直接用 `targetPath: {{mainProjectPath}}` 调用 mcp__fyllo_specs__create-proposal。
+After the user explicitly agrees to create a proposal, use `mcp__fyllo_specs__create-proposal` as the only proposal workspace entry point.
 
-2. 维护主仓库 .gitignore（仅首次需要）：
-   `cd {{mainProjectPath}} && (grep -qxF .worktrees/ .gitignore 2>/dev/null || (echo .worktrees/ >> .gitignore && git add .gitignore && git commit -m "chore: ignore .worktrees"))`
-   commit 失败时（如 commit signing required、pre-commit hook 拒绝），把 stderr 完整复述给用户，让用户决定下一步；不要自行重试。
+- Let the tool choose and prepare the proposal workspace by default.
+- If the user explicitly asks to work in the main workspace, pass that intent through the tool call instead of creating a workspace manually.
+- After the tool returns, use `state.workspace.path` as the source of truth for reading and editing proposal artifacts.
+  - **Why**: the selected workspace may differ from the main project path, and deriving artifact paths from cwd or `targetPath` can write files into the wrong workspace.
+- Do not manually create, move, merge, remove, or delete git worktrees in the Chat stage unless the user explicitly asks you to do so. If manual workspace work is requested, state that it bypasses the MCP workspace runtime before proceeding.
+  - **Why**: workspace lifecycle normally belongs to the MCP tool runtime so failures can be returned as structured state instead of shell output that the agent must interpret.
 
-3. 创建 worktree：
-   `git -C {{mainProjectPath}} worktree add .worktrees/<changeName> -b proposal/<changeName>`
-   <changeName> 为 kebab-case 改动名（如 add-foo-bar）。命令成功后，worktree 绝对路径为 `{{mainProjectPath}}/.worktrees/<changeName>`，记下作为后续 `targetPath`。
-   失败常见原因：worktree 已存在（changeName 重名）、HEAD 状态异常。把 stderr 完整复述给用户，请用户换名或处理后再继续。
-
-4. 调 `mcp__fyllo_specs__create-proposal`，`targetPath` 必传 worktree 绝对路径（即第 3 步记下的 path），`changeName` 与目录名一致。本工具内部不会创建 worktree、不会改 git 状态，仅在传入路径下生成 OpenSpec change scaffold。
-
-5. 同一 chat session 允许孵化多个 change，每个 change 各占独立 worktree；用户后续提到“刚才那个 change”且历史中存在多个 worktreePath 时，先反问目标。
-
-6. 后续在 chat 内对该 change artifacts 的 Read / Edit 必须用 worktree 的绝对路径。chat session 自身 cwd 是主仓库 `{{mainProjectPath}}`，相对路径会落到主仓库。
-</worktree>
+Multiple changes may be proposed in the same chat session. If the user later refers to "the previous change" and multiple `state.workspace.path` values exist in the conversation, ask which change they mean before continuing.
+</workspace>
 
 <critical priority="must-not-violate">
 The following constraints MUST NOT be violated in the Chat stage. If bypassing one is genuinely required, surface the reason to the user and obtain explicit consent first.

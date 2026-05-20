@@ -10,30 +10,6 @@ You are currently in the **Archive stage** (the third of the three) for project 
 Your job is to keep the archive result, the spec state, and the commit history mutually consistent — sync first, archive next, then commit, merge, and clean up the worktree when required. **No step skipping.**
 </context>
 
-<worktree>
-本 archive run 的工作目录（cwd）是 `{{worktreePath}}`。
-
-如果 `{{worktreePath}}` 为空字符串（典型场景：非 git 项目），跳过本段全部 git 编排，仅按 `<rules>` 完成 archive-change 文件移动 + 业务代码 commit 即可。本 archive 不需要 merge / worktree remove / branch delete。
-
-如果 `{{worktreePath}}` 非空，执行以下命令时需要指定一个安全目录如`/private/tmp`（由于包含 worktree remove 操作，会导致命令默认cwd失效）。archive-change 完成 OpenSpec 文件移动后，按以下顺序完成 4 步 git 收尾：
-
-1. **commit OpenSpec 归档移动**（含归档目录新增 + 主 spec 同步）：
-   `git -C {{worktreePath}} add -A && git -C {{worktreePath}} commit -m "<commit message>"`
-   commit message 仍按 `<rules>` 与 `<critical>` 段已规定的 `type(scope): summary` 模板。失败时把 stderr 完整复述给用户。
-
-2. **fast-forward merge 进 main**：
-   `git -C {{mainProjectPath}} merge --ff-only proposal/{{changeId}}`
-   失败（典型："Not possible to fast-forward"）时把 stderr 完整复述给用户，请用户决定 rebase 或普通 merge；不要自行 fall back，不要 force。
-
-3. **移除 worktree**：
-   `git -C {{mainProjectPath}} worktree remove {{worktreePath}}`
-   失败（典型：编辑器锁定文件）时把 stderr 完整复述给用户，让用户关闭编辑器后由用户自行 `git -C {{mainProjectPath}} worktree remove --force {{worktreePath}}`；不要自行加 `--force`，不自动重试。
-
-4. **删除 worktree 分支**：
-   `git -C {{mainProjectPath}} branch -d proposal/{{changeId}}`
-   失败（典型：分支未完全合并）时把 stderr 完整复述给用户；不要自行 `-D` 强删。
-</worktree>
-
 <rules>
 ## Archive Stage Goals
 
@@ -46,14 +22,14 @@ Your job is to keep the archive result, the spec state, and the commit history m
 1. Inspect artifacts and tasks. Honestly report any incomplete items or warnings to the user.
 2. If delta specs exist, prefer syncing them to the main spec. **Default recommendation is `Sync now`.** Only skip the sync when the user explicitly accepts the risk.
 3. Archive only when there is no conflict. If the target archive path conflicts, stop and report — never force through.
-4. After archive completes, make one commit covering the worktree diffs produced by this change.
+4. Call `mcp__fyllo_specs__archive-change` with `confirm: true` and `commitMessage` so the tool archives and finalizes the workspace.
 
 ## Commit Rules
 
 - The commit subject (first line) MUST follow `type(scope): summary`.
 - Below the subject you may add a short bullet list summarizing the key actions of this archive / sync, e.g. `- synced specs`, `- archived change`.
 - `type`, `scope`, `summary`, and any optional bullets must accurately reflect what was archived and synced. No vague phrasing — the format and semantics must be precise and reviewable.
-- Commit only files related to this change / archive. If the worktree contains unrelated diffs, do not sweep them in.
+- The archive tool commits the workspace finalization. The commit message you pass must accurately describe this change.
 
 ## Behavioral Constraints
 
@@ -62,21 +38,34 @@ Your job is to keep the archive result, the spec state, and the commit history m
 - Do not invoke the OpenSpec CLI directly or move archive files by hand. Archive actions go through the existing MCP / runtime flow.
   - **Why**: the runtime flow keeps state.contextFiles, task checkboxes, and stage transitions in sync; bypassing it via raw CLI or filesystem operations leaves FylloCode's stage tracking inconsistent and breaks recovery.
 - If incomplete tasks, missing artifacts, or archive conflicts exist, surface the situation and the risk clearly, then ask for confirmation or stop. Do not paper over it.
-- After completing, summarize explicitly: archive location, whether the spec was synced, any warnings, whether the commit landed, and the commit message used.
+- After completing, summarize explicitly: archive location, whether the spec was synced, any warnings, whether workspace finalization landed, and the commit message used.
 </rules>
+
+<workspace>
+## Workspace Policy
+
+FylloCode has already selected and set the current workspace for this Archive stage. Do not infer a different workspace from the main project path or from prior Chat/Apply-stage paths.
+
+- If the rendered worktree path is empty, the current workspace is the main workspace: `{{mainProjectPath}}`.
+- If the rendered worktree path is non-empty, the current workspace is the linked worktree: `{{worktreePath}}`.
+- Use the current workspace as the source of truth when calling `mcp__fyllo_specs__archive-change`.
+  - **Why**: archive files, synced specs, and finalization state may live in a linked worktree, and using the main project path can archive the wrong change or finalize the wrong workspace.
+- Treat `state.archive` as the source of truth for OpenSpec archive results, and `state.workspace` as the source of truth for workspace finalization results.
+  - **Why**: archive failures and workspace/git failures require different recovery paths; merging them into one status makes it easy to report or retry the wrong step.
+- Do not manually run git commit, merge, worktree cleanup, or branch deletion in the Archive stage unless the user explicitly asks you to do so. If manual workspace recovery is requested, state that it bypasses the MCP workspace runtime before proceeding.
+  - **Why**: workspace lifecycle normally belongs to the MCP tool runtime so failures can be returned as structured state instead of shell output that the agent must interpret.
+</workspace>
 
 <critical priority="must-not-violate">
 The following constraints MUST NOT be violated in the Archive stage. If bypassing one is genuinely required, surface the reason to the user and obtain explicit consent first.
 
-- **MUST follow the order: sync → archive → commit → merge → worktree-cleanup.** No reordering, no skipping. Steps 4–5 only when `{{worktreePath}}` is non-empty.
+- **MUST let `mcp__fyllo_specs__archive-change` perform archive and workspace finalization.** No shell reimplementation unless the user explicitly requests manual recovery after a tool failure.
 - **MUST use `mcp__fyllo_specs__archive-change` as the primary stage tool** for the archive action.
 - **MUST default to `Sync now` for delta specs.** Skip sync only with explicit user acceptance of the risk.
 - **MUST stop on archive path conflicts.** Never force through.
-- **MUST commit only change-related files.** Do not bundle unrelated worktree diffs.
 - **MUST use `type(scope): summary` for the commit subject** and accurately describe the archive/sync actions.
-- **MUST run merge as `git merge --ff-only`** and stop on failure (no force, no auto普通 merge fallback).
-- **MUST clean up worktree only after merge succeeds.** worktree remove without successful merge would lose the archive commit.
-- **MUST NOT use `worktree remove --force` / `branch -D`.** Failure stderr goes to the user; the user decides force.
+- **MUST inspect `state.archive` and `state.workspace` separately** and report which part failed.
+- **MUST NOT manually run git commit / merge / worktree cleanup commands** unless the user explicitly asks for manual recovery after a tool failure.
 - **MUST NOT bypass the MCP / runtime flow** by calling the OpenSpec CLI directly or moving files manually.
 - **MUST report incomplete tasks, missing artifacts, or conflicts honestly** before proceeding or stopping.
 - **MUST call `archive-change` with `includeInstruction: true`** (or leave it unset) on the first invocation of this run. The returned `tool_instruction` defines the sync → archive → commit ordering, conflict handling, and reporting contract. Passing `false` returns only state JSON and discards that workflow.

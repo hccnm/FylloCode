@@ -68,9 +68,13 @@ describe("resolveSystemReminder", () => {
     expect(reminder?.text.trim().endsWith("</system-reminder>")).toBe(true);
     expect(reminder?.text).toContain("Stage index: 2");
     expect(reminder?.text).toContain("Run id: run-1");
-    expect(reminder?.text).toContain("<worktree>");
-    expect(reminder?.text).toContain("本 stage 的工作目录（cwd）是 ``。");
-    expect(reminder?.text).toContain("主仓库 `/tmp/project`");
+    expect(reminder?.text).toContain("<workspace>");
+    expect(reminder?.text).toContain("Workspace Policy");
+    expect(reminder?.text).toContain("the current workspace is the main workspace");
+    expect(reminder?.text).toContain("`/tmp/project`");
+    expect(reminder?.text.indexOf("<rules>")).toBeLessThan(
+      reminder?.text.indexOf("<workspace>") ?? 0
+    );
   });
 
   it("returns null and logs a warning when a variable contains angle brackets", async () => {
@@ -112,7 +116,7 @@ describe("resolveSystemReminder", () => {
     expect(reminder).toContain("{{unknownField}}");
   });
 
-  it("renders the chat worktree instructions", async () => {
+  it("renders the chat workspace tool contract", async () => {
     const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
 
     const reminder = await resolveSystemReminder({
@@ -123,8 +127,12 @@ describe("resolveSystemReminder", () => {
       agentId: "claude-acp",
     });
 
-    expect(reminder?.text).toContain("<worktree>");
-    expect(reminder?.text).toContain("git -C /tmp/project worktree add .worktrees/<changeName>");
-    expect(reminder?.text).toContain("targetPath: /tmp/project");
+    expect(reminder?.text).toContain("<workspace>");
+    expect(reminder?.text).toContain("Workspace Policy");
+    expect(reminder?.text).toContain("Let the tool choose and prepare the proposal workspace");
+    expect(reminder?.text).toContain("state.workspace.path");
+    expect(reminder?.text).toContain("mcp__fyllo_specs__create-proposal");
+    expect(reminder?.text).toContain("bypasses the MCP workspace runtime");
+    expect(reminder?.text).not.toContain("git worktree add");
   });
 });

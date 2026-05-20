@@ -1,7 +1,7 @@
-import explore from "../prompts/explore.md";
-import createProposal from "../prompts/create-proposal.md";
-import applyChange from "../prompts/apply-change.md";
-import archiveChange from "../prompts/archive-change.md";
+import explore from "../tools/instructions/explore.md";
+import createProposal from "../tools/instructions/create-proposal.md";
+import applyChange from "../tools/instructions/apply-change.md";
+import archiveChange from "../tools/instructions/archive-change.md";
 
 const prompts = {
   explore,

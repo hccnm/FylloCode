@@ -47,7 +47,13 @@ export async function archiveChange(
 
   // Execution mode: delegate to openspec CLI
   if (conflicts.length > 0) {
-    throw new Error(`Archive target exists: ${target}`);
+    return {
+      changeName: name,
+      archiveTarget: target,
+      conflicts,
+      deltaSpecSummary: existsSync(source) ? deltaSummary(source) : null,
+      archiveRawOutput: null,
+    };
   }
 
   const cliPath = resolveOpenspecCli();

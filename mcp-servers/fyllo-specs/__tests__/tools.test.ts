@@ -5,6 +5,7 @@ import { CallToolResultSchema, ErrorCode } from "@modelcontextprotocol/sdk/types
 import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { spawnSync } from "child_process";
 import { describe, expect, it, vi } from "vitest";
 import { applyChangeTool } from "../src/tools/apply-change";
 import { createProposalTool } from "../src/tools/create-proposal";
@@ -12,6 +13,30 @@ import { archiveChangeTool } from "../src/tools/archive-change";
 import { exploreTool } from "../src/tools/explore";
 import { registerTools } from "../src/tools";
 import { gitChildProcess } from "../src/utils/project-root";
+
+function git(cwd: string, args: string[]): void {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout);
+  }
+}
+
+function initGitRepo(root: string): void {
+  git(root, ["init"]);
+  git(root, ["config", "user.name", "Fyllo Test"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  writeFileSync(join(root, "README.md"), "initial\n", "utf8");
+  git(root, ["add", "-A"]);
+  git(root, ["commit", "-m", "chore(test): initial"]);
+}
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
+}
 
 function parseState(text: string): Record<string, unknown> {
   const match = text.match(/<state>\n([\s\S]+?)\n<\/state>/);
@@ -58,7 +83,7 @@ describe("tools", () => {
       expect(text).toContain("<tool_instruction>");
       expect(text).toContain("<state>");
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
   });
 
@@ -139,7 +164,7 @@ describe("tools", () => {
       const state = JSON.parse(text);
       expect(state).toHaveProperty("activeChanges");
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
   });
 
@@ -152,7 +177,86 @@ describe("tools", () => {
       expect(state.errors).toBeInstanceOf(Array);
       expect((state.errors as Array<{ message: string }>)[0].message).toContain("kebab-case");
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+    }
+  });
+
+  it("create-proposal uses explicit main workspace", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    mkdirSync(join(root, "openspec", "changes"), { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    try {
+      const text = await createProposalTool({
+        changeName: "main-workspace-change",
+        targetPath: root,
+        workspaceMode: "main",
+        includeInstruction: false,
+      });
+      const state = JSON.parse(text);
+      expect(state.workspace).toEqual({ mode: "main", path: root });
+      expect(state.warnings).toEqual([]);
+      expect(existsSync(join(root, "openspec", "changes", "main-workspace-change"))).toBe(true);
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
+    }
+  });
+
+  it("create-proposal falls back to main workspace for non-git linked mode", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    mkdirSync(join(root, "openspec", "changes"), { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    try {
+      const text = await createProposalTool({
+        changeName: "fallback-change",
+        targetPath: root,
+        includeInstruction: false,
+      });
+      const state = JSON.parse(text);
+      expect(state.workspace).toEqual({ mode: "main", path: root });
+      expect((state.warnings as string[])[0]).toContain("not a git repo");
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
+    }
+  });
+
+  it("create-proposal defaults to linked workspace for git projects", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    mkdirSync(join(root, "openspec", "changes"), { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    initGitRepo(root);
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    try {
+      const text = await createProposalTool({
+        changeName: "linked-workspace-change",
+        targetPath: root,
+        includeInstruction: false,
+      });
+      const state = JSON.parse(text);
+      const workspacePath = join(root, ".worktrees", "linked-workspace-change");
+      expect(state.workspace).toEqual({ mode: "linked", path: workspacePath });
+      expect(
+        existsSync(join(workspacePath, "openspec", "changes", "linked-workspace-change"))
+      ).toBe(true);
+      expect(readFileSync(join(root, ".gitignore"), "utf8")).toContain(".worktrees/");
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
     }
   });
 
@@ -170,7 +274,7 @@ describe("tools", () => {
       expect(state.errors).toBeInstanceOf(Array);
       expect((state.errors as Array<{ message: string }>)[0].message).toContain("kebab-case");
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
   });
 
@@ -190,7 +294,7 @@ describe("tools", () => {
       );
       expect((state.errors as Array<{ message: string }>)[0].message).toContain("worktree ");
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
   });
 
@@ -203,7 +307,7 @@ describe("tools", () => {
       expect(state.projectRoot).toBe(repoRoot);
       expect(state.activeChanges).toBeInstanceOf(Array);
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
   });
 
@@ -215,7 +319,7 @@ describe("tools", () => {
       const state = JSON.parse(text);
       expect(state.projectRoot).toBe(repoRoot);
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
   });
 
@@ -238,7 +342,7 @@ describe("tools", () => {
         "targetPath must be the project root for non-git projects"
       );
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
   });
 
@@ -249,14 +353,14 @@ describe("tools", () => {
     process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
     try {
       const text = await applyChangeTool({
-        changeName: "add-multi-worktree-foundation",
+        changeName: "upgrade-fyllo-specs-workspace",
         targetPath: repoRoot,
       });
-      expect(text).toContain('"changeName": "add-multi-worktree-foundation"');
+      expect(text).toContain('"changeName": "upgrade-fyllo-specs-workspace"');
       expect(text).toContain('"applyState": "ready"');
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
-      process.env.FYLLO_OPENSPEC_CLI_PATH = prevCli;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
     }
   });
 
@@ -275,8 +379,8 @@ describe("tools", () => {
       expect(state.errors).toBeInstanceOf(Array);
       expect((state.errors as Array<{ message: string }>)[0].message).toContain("Change not found");
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
-      process.env.FYLLO_OPENSPEC_CLI_PATH = prevCli;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
     }
   });
 
@@ -293,7 +397,71 @@ describe("tools", () => {
       expect(state.errors).toBeInstanceOf(Array);
       expect((state.errors as Array<{ message: string }>)[0].message).toContain("Change not found");
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+    }
+  });
+
+  it("archive-change preview returns structured state without commitMessage", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const changeDir = join(root, "openspec", "changes", "test-preview");
+    mkdirSync(changeDir, { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    writeFileSync(
+      join(changeDir, ".openspec.yaml"),
+      "schema: spec-driven\nstatus: applying\n",
+      "utf8"
+    );
+    writeFileSync(join(changeDir, "tasks.md"), "- [ ] todo\n", "utf8");
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    try {
+      const text = await archiveChangeTool({
+        changeName: "test-preview",
+        targetPath: root,
+        includeInstruction: false,
+      });
+      const state = JSON.parse(text);
+      expect(state.archive.archiveTarget).toContain("test-preview");
+      expect(state.archive.archiveRawOutput).toBeNull();
+      expect(state.archive.incompleteTasks).toBe(1);
+      expect(state.workspace.gitOps).toEqual([]);
+      expect(existsSync(changeDir)).toBe(true);
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+    }
+  });
+
+  it("archive-change rejects invalid commitMessage before archiving", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const changeDir = join(root, "openspec", "changes", "test-invalid-message");
+    mkdirSync(changeDir, { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    writeFileSync(
+      join(changeDir, ".openspec.yaml"),
+      "schema: spec-driven\nstatus: applying\n",
+      "utf8"
+    );
+    writeFileSync(join(changeDir, "tasks.md"), "- [x] done\n", "utf8");
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    try {
+      const text = await archiveChangeTool({
+        changeName: "test-invalid-message",
+        targetPath: root,
+        confirm: true,
+        commitMessage: "bad message",
+        includeInstruction: false,
+      });
+      const state = JSON.parse(text);
+      expect(state.status).toBe("failed");
+      expect(state.archive.ok).toBe(false);
+      expect(state.archive.error.code).toBe("invalid-commit-message");
+      expect(state.workspace.gitOps).toEqual([]);
+      expect(existsSync(changeDir)).toBe(true);
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
   });
 
@@ -301,6 +469,7 @@ describe("tools", () => {
     const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
     const changeDir = join(root, "openspec", "changes", "test-archive");
     mkdirSync(changeDir, { recursive: true });
+    initGitRepo(root);
     writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
     writeFileSync(
       join(changeDir, ".openspec.yaml"),
@@ -323,21 +492,30 @@ describe("tools", () => {
         changeName: "test-archive",
         targetPath: root,
         confirm: true,
+        commitMessage: "chore(specs): archive test archive",
       });
       const state = parseState(text);
       expect(state.errors).toBeUndefined();
       expect(state.changeName).toBe("test-archive");
-      expect(state.confirm).toBe(true);
-      expect(state.incompleteTasks).toBe(1);
-      expect(state.archiveTarget).toContain("test-archive");
-      expect(typeof state.archiveRawOutput).toBe("string");
-      expect((state.archiveRawOutput as string).length).toBeGreaterThan(0);
+      expect((state.archive as { incompleteTasks: number }).incompleteTasks).toBe(1);
+      expect((state.archive as { archiveTarget: string }).archiveTarget).toContain("test-archive");
+      expect(typeof (state.archive as { archiveRawOutput: string }).archiveRawOutput).toBe(
+        "string"
+      );
+      expect(
+        (state.archive as { archiveRawOutput: string }).archiveRawOutput.length
+      ).toBeGreaterThan(0);
+      expect((state.workspace as { mode: string }).mode).toBe("main");
+      expect(
+        (state.workspace as { gitOps: Array<{ step: string }> }).gitOps.map((op) => op.step)
+      ).toEqual(["commit"]);
       expect(existsSync(changeDir)).toBe(false);
-      expect(existsSync(state.archiveTarget as string)).toBe(true);
-      expect(existsSync(join(state.archiveTarget as string, "tasks.md"))).toBe(true);
+      const archiveTarget = (state.archive as { archiveTarget: string }).archiveTarget;
+      expect(existsSync(archiveTarget)).toBe(true);
+      expect(existsSync(join(archiveTarget, "tasks.md"))).toBe(true);
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
-      process.env.FYLLO_OPENSPEC_CLI_PATH = prevCli;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
     }
   });
 
@@ -363,6 +541,7 @@ describe("tools", () => {
     );
 
     writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    initGitRepo(root);
     writeFileSync(
       join(changeDir, ".openspec.yaml"),
       "schema: spec-driven\nstatus: applying\n",
@@ -379,22 +558,27 @@ describe("tools", () => {
         changeName: "test-sync-spec",
         targetPath: root,
         confirm: true,
+        commitMessage: "chore(specs): archive synced spec",
       });
       const state = parseState(text);
       expect(state.errors).toBeUndefined();
       expect(state.changeName).toBe("test-sync-spec");
-      expect(typeof state.archiveRawOutput).toBe("string");
-      expect((state.archiveRawOutput as string).length).toBeGreaterThan(0);
+      expect(typeof (state.archive as { archiveRawOutput: string }).archiveRawOutput).toBe(
+        "string"
+      );
+      expect(
+        (state.archive as { archiveRawOutput: string }).archiveRawOutput.length
+      ).toBeGreaterThan(0);
 
       const mainSpecContent = readFileSync(join(mainSpecDir, "spec.md"), "utf8");
       expect(mainSpecContent).toContain("System SHALL do the updated thing.");
       expect(mainSpecContent).toContain("System SHALL support the new feature.");
 
       expect(existsSync(changeDir)).toBe(false);
-      expect(existsSync(state.archiveTarget as string)).toBe(true);
+      expect(existsSync((state.archive as { archiveTarget: string }).archiveTarget)).toBe(true);
     } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
-      process.env.FYLLO_OPENSPEC_CLI_PATH = prevCli;
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
     }
   });
 });

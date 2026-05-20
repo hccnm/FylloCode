@@ -3,8 +3,8 @@ import { existsSync } from "fs";
 import { z } from "zod";
 import { runTool } from "../utils/state";
 import { validateTargetPath } from "../utils/project-root";
-import { changeDir } from "../openspec-runtime";
-import { loadApplyState } from "../openspec-runtime/tasks";
+import { changeDir } from "../runtime-openspec";
+import { loadApplyState } from "../runtime-openspec/tasks";
 
 const applyChangeInputSchema = z.object({
   changeName: z
@@ -38,7 +38,7 @@ export async function applyChangeTool(
       throw error;
     }
 
-    const projectRoot = result.resolved;
+    const projectRoot = result.resolved!;
     if (!existsSync(changeDir(projectRoot, input.changeName))) {
       throw new Error(`Change not found: ${input.changeName}`);
     }

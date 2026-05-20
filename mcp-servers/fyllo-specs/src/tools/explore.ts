@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runTool } from "../utils/state";
-import { listChanges, computeStatus } from "../openspec-runtime";
+import { listChanges, computeStatus } from "../runtime-openspec";
 import { validateTargetPath } from "../utils/project-root";
 
 const exploreInputSchema = z.object({

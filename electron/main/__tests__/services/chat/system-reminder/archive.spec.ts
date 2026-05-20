@@ -29,7 +29,7 @@ describe("archive system-reminder template", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the worktree section with concrete worktree and branch values", () => {
+  it("renders the workspace section with archive-change result handling", () => {
     const reminder = renderSystemReminderTemplate(
       archiveTemplate,
       createContext({
@@ -37,24 +37,26 @@ describe("archive system-reminder template", () => {
       })
     );
 
-    expect(reminder).toContain("<worktree>");
-    expect(reminder).toContain("</worktree>");
+    expect(reminder).toContain("<workspace>");
+    expect(reminder).toContain("</workspace>");
+    expect(reminder).toContain("Workspace Policy");
     expect(reminder).toContain("/abs/.worktrees/foo");
-    expect(reminder).toContain("proposal/foo");
-    expect(reminder).toContain("git -C /abs merge --ff-only proposal/foo");
-    expect(reminder).toContain("git -C /abs worktree remove /abs/.worktrees/foo");
-    expect(reminder).toContain("git -C /abs branch -d proposal/foo");
-    expect(reminder).toContain("MUST run merge as `git merge --ff-only`");
-    expect(reminder).toContain("MUST NOT use `worktree remove --force` / `branch -D`.");
+    expect(reminder).toContain("mcp__fyllo_specs__archive-change");
+    expect(reminder).toContain("state.archive");
+    expect(reminder).toContain("state.workspace");
+    expect(reminder).toContain("bypasses the MCP workspace runtime");
+    expect(reminder).not.toBeNull();
+    expect(reminder!.indexOf("<rules>")).toBeLessThan(reminder!.indexOf("<workspace>"));
+    expect(reminder).not.toContain("git -C /abs merge --ff-only");
+    expect(reminder).not.toContain("git -C /abs worktree remove");
+    expect(reminder).not.toContain("git -C /abs branch -d");
   });
 
-  it("renders an empty worktreePath and keeps the explicit downgrade instructions", () => {
+  it("renders an empty worktreePath as main workspace", () => {
     const reminder = renderSystemReminderTemplate(archiveTemplate, createContext());
 
-    expect(reminder).toContain("<worktree>");
-    expect(reminder).toContain("如果 `` 为空字符串");
-    expect(reminder).toContain("跳过本段全部 git 编排");
-    expect(reminder).toContain("本 archive 不需要 merge / worktree remove / branch delete。");
+    expect(reminder).toContain("<workspace>");
+    expect(reminder).toContain("the current workspace is the main workspace");
   });
 
   it("renders mainProjectPath as the same value as projectPath", () => {
@@ -68,7 +70,7 @@ describe("archive system-reminder template", () => {
     expect(reminder).toBe("main=/abs/project project=/abs/project");
   });
 
-  it("replaces changeId placeholders consistently for archive branches", () => {
+  it("replaces changeId placeholders consistently for archive context", () => {
     const reminder = renderSystemReminderTemplate(
       archiveTemplate,
       createContext({
@@ -77,9 +79,8 @@ describe("archive system-reminder template", () => {
       })
     );
 
-    expect(reminder).toContain("archive foo_bar");
-    expect(reminder).toContain("proposal/foo_bar");
-    expect(reminder).toContain("git -C /abs branch -d proposal/foo_bar");
+    expect(reminder).toContain("OpenSpec change `foo_bar`");
+    expect(reminder).not.toContain("branch -d proposal/foo_bar");
   });
 
   it("returns null and warns when any field contains angle brackets", () => {
