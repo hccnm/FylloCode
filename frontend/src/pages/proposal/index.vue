@@ -117,14 +117,24 @@ onMounted(() => {
           <div class="space-y-2.5">
             <div class="flex items-start justify-between gap-3">
               <span class="text-sm font-medium text-highlighted">{{ proposal.title }}</span>
-              <UBadge
-                :color="statusConfig[proposal.status].color"
-                :variant="statusConfig[proposal.status].variant"
-                size="sm"
-                class="shrink-0 mt-0.5"
-              >
-                {{ statusConfig[proposal.status].label }}
-              </UBadge>
+              <div class="flex items-center gap-2 shrink-0">
+                <UBadge
+                  :color="statusConfig[proposal.status].color"
+                  :variant="statusConfig[proposal.status].variant"
+                  size="sm"
+                  class="shrink-0 mt-0.5"
+                >
+                  {{ statusConfig[proposal.status].label }}
+                </UBadge>
+                <span
+                  v-if="proposal.worktreePath"
+                  class="inline-flex items-center gap-1 text-xs text-muted shrink-0 mt-0.5"
+                  :title="proposal.worktreePath"
+                >
+                  <UIcon name="i-lucide-git-branch" class="w-3 h-3" />
+                  <span>worktree</span>
+                </span>
+              </div>
             </div>
             <p class="text-xs text-muted line-clamp-2 leading-relaxed">{{ proposal.why }}</p>
             <div class="flex items-center gap-3 text-xs text-muted pt-0.5">

@@ -49,6 +49,19 @@ Your job in this stage is to turn an already-agreed proposal into code, one task
 - When all tasks are done, explicitly signal that the change is ready for the Archive stage.
 </rules>
 
+<workspace>
+## Workspace Policy
+
+FylloCode has already selected and set the current workspace for this Apply stage. Do not infer a different workspace from the main project path or from prior Chat-stage paths.
+
+- If the rendered worktree path is empty, the current workspace is the main workspace: `{{mainProjectPath}}`.
+- If the rendered worktree path is non-empty, the current workspace is the linked worktree: `{{worktreePath}}`.
+- Use the current workspace as the source of truth when calling `mcp__fyllo_specs__apply-change` and when reading or editing implementation files.
+  - **Why**: the proposal artifacts and code changes may live in a linked worktree, and using the main project path can read stale artifacts or write implementation changes into the wrong workspace.
+- Do not manually create, move, merge, remove, or delete git worktrees in the Apply stage unless the user explicitly asks you to do so. If manual workspace work is requested, state that it bypasses the MCP workspace runtime before proceeding.
+  - **Why**: workspace lifecycle normally belongs to the MCP tool runtime so failures can be returned as structured state instead of shell output that the agent must interpret.
+</workspace>
+
 <critical priority="must-not-violate">
 The following constraints MUST NOT be violated in the Apply stage. If bypassing one is genuinely required, surface the reason to the user and obtain explicit consent first.
 

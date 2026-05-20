@@ -8,9 +8,9 @@ import {
   getInstructions,
   listChanges,
   resolveOpenspecCli,
-} from "../src/openspec-runtime";
-import { buildSpawnArgs } from "../src/openspec-runtime/spawner";
-import { loadApplyState, parseTaskCheckboxes } from "../src/openspec-runtime/tasks";
+} from "../src/runtime-openspec";
+import { buildSpawnArgs } from "../src/runtime-openspec/spawner";
+import { loadApplyState, parseTaskCheckboxes } from "../src/runtime-openspec/tasks";
 import { resolveProjectRoot } from "../src/utils/project-root";
 
 const fixtureRoot = join(

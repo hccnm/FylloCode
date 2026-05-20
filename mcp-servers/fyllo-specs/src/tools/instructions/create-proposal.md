@@ -1,12 +1,23 @@
 Create or inspect an OpenSpec change using the provided `state`.
 
-**Input**: `state.changeName` is the kebab-case name for this change.
+**Input**: `targetPath` is required and must be the main repo root. The tool prepares the actual
+workspace and returns it in `state.workspace.path`.
+
+- Omit `workspaceMode` by default; the tool will use linked worktree mode.
+- Pass `workspaceMode: "main"` only when the user explicitly asks to work directly in the main
+  workspace.
+- After the tool returns, read and edit proposal artifacts under `state.workspace.path`. Do not infer
+  artifact paths from `targetPath` when `state.workspace.path` is present.
+
+`state.changeName` is the kebab-case name for this change.
 
 **Steps**
 
 1. **Check state**
 
    Read `state` to understand the current situation:
+   - `state.workspace`: the workspace `{ mode, path }` where all artifacts must be read and edited
+   - `state.warnings`: non-blocking workspace notes, such as non-git fallback to main workspace
    - `state.artifacts`: list of artifacts with their status and instruction data
    - `state.applyRequires`: artifact IDs needed before implementation can start
    - `state.nextArtifact`: the next artifact ID that needs to be created (null if all done)
@@ -19,6 +30,7 @@ Create or inspect an OpenSpec change using the provided `state`.
 
    For each artifact where `status !== "done"` and dependencies are satisfied:
    - Read any completed dependency artifacts for context (paths are in `state.artifacts[*].outputPath`)
+   - Resolve those paths relative to `state.workspace.path` when you need to inspect or edit files
    - Create the artifact file using `state.template` as the structure
    - Apply `state.instruction` as guidance — but do NOT copy instruction/context/rules blocks into the file
    - Show brief progress: "Created <artifact-id>"
@@ -59,6 +71,7 @@ The agents that later implement this proposal will start fresh — they will NOT
 **Guardrails**
 
 - Do not invoke the OpenSpec CLI directly. Change creation, status lookup, and artifact instruction lookup are handled by this MCP server.
+- Do not create or manage git worktrees manually. Workspace setup is handled by this MCP server.
 - Create ALL artifacts needed for implementation (as defined by `state.applyRequires`)
 - Always read dependency artifacts before creating a new one
 - If context is critically unclear, ask the user — but prefer making reasonable decisions to keep momentum

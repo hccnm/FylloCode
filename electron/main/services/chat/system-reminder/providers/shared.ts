@@ -2,7 +2,14 @@ import logger from "@main/infra/logger";
 import type { SystemReminderContext } from "../types";
 
 const VARIABLE_PATTERN = /\{\{([a-zA-Z0-9_]+)\}\}/g;
-const ALLOWED_VARIABLES = ["changeId", "stageIndex", "runId", "projectPath"] as const;
+const ALLOWED_VARIABLES = [
+  "changeId",
+  "stageIndex",
+  "runId",
+  "projectPath",
+  "worktreePath",
+  "mainProjectPath",
+] as const;
 const ALLOWED_VARIABLE_SET = new Set<string>(ALLOWED_VARIABLES);
 type AllowedVariable = (typeof ALLOWED_VARIABLES)[number];
 
@@ -38,6 +45,10 @@ function getVariableValue(
     case "runId":
       return ctx.runId;
     case "projectPath":
+      return ctx.projectPath;
+    case "worktreePath":
+      return ctx.worktreePath;
+    case "mainProjectPath":
       return ctx.projectPath;
     default:
       return undefined;

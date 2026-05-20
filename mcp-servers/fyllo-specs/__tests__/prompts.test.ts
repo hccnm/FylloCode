@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
 
-const promptDir = join(process.cwd(), "mcp-servers", "fyllo-specs", "src", "prompts");
+const promptDir = join(process.cwd(), "mcp-servers", "fyllo-specs", "src", "tools", "instructions");
 const promptFiles = ["explore.md", "create-proposal.md", "apply-change.md", "archive-change.md"];
 
 describe("fyllo-specs prompts", () => {

@@ -4,6 +4,20 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.4.0] - 2026-05-20
+
+### Changed
+
+- `create-proposal`: added `workspaceMode` with linked worktree mode as the default and explicit main workspace override support.
+- `create-proposal`: responses now include `workspace: { mode, path }` plus `warnings`, so agents edit proposal artifacts in the prepared workspace path.
+- `archive-change`: added `commitMessage` for confirmed archives and moved archive git finalization into the MCP runtime.
+- `archive-change`: responses now split OpenSpec archive status and workspace git finalization status into `archive` and `workspace` objects with per-step git operation results.
+- System reminders now describe MCP tool contracts and result handling instead of embedding worktree lifecycle shell command sequences.
+
+### Added
+
+- Added internal `workspace-runtime` for proposal workspace preparation, linked worktree creation, archive commit, fast-forward merge, worktree removal, branch deletion, and structured git step results.
+
 ## [0.3.1] - 2026-05-18
 
 ### Changed

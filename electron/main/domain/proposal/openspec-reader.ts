@@ -1,5 +1,5 @@
 import { promises as fs } from "fs";
-import { basename, join } from "path";
+import { basename, join, resolve } from "path";
 import type { ProposalMeta, ProposalStatus } from "@shared/types/proposal";
 
 /**
@@ -94,10 +94,41 @@ export async function readIfExists(targetPath: string): Promise<string | null> {
   }
 }
 
-export async function readProposalFiles(projectPath: string): Promise<ProposalMeta[]> {
-  const baseChangesDir = join(projectPath, "openspec", "changes");
+async function readMetaFromDir(
+  changeDir: string,
+  entryName: string,
+  statusOverride?: ProposalStatus,
+  worktreePath?: string
+): Promise<ProposalMeta | null> {
+  const location = normalizeChangeId(entryName);
+  const yamlContent = await readIfExists(join(changeDir, ".openspec.yaml"));
+  if (!yamlContent) {
+    return null;
+  }
+
+  const proposalContent = await readIfExists(join(changeDir, "proposal.md"));
+  const tasksContent = await readIfExists(join(changeDir, "tasks.md"));
+  const status = statusOverride ?? parseYamlStatus(yamlContent);
+  const date = parseYamlCreated(yamlContent);
+  const why = proposalContent ? parseWhySummary(proposalContent) : "";
+  const taskCounts = tasksContent ? countTasks(tasksContent) : { totalTasks: 0, doneTasks: 0 };
+
+  return {
+    id: location.changeId,
+    title: toTitleCase(stripArchivePrefix(entryName)),
+    status: location.archived ? "archived" : status,
+    why,
+    totalTasks: taskCounts.totalTasks,
+    doneTasks: taskCounts.doneTasks,
+    hasDesign: Boolean(await readIfExists(join(changeDir, "design.md"))),
+    date,
+    worktreePath: worktreePath ? resolve(worktreePath) : undefined,
+  };
+}
+
+async function readActiveDir(dir: string, worktreePath?: string): Promise<ProposalMeta[]> {
   try {
-    const entries = await fs.readdir(baseChangesDir, { withFileTypes: true });
+    const entries = await fs.readdir(dir, { withFileTypes: true });
     const metas: ProposalMeta[] = [];
 
     for (const entry of entries) {
@@ -105,77 +136,99 @@ export async function readProposalFiles(projectPath: string): Promise<ProposalMe
         continue;
       }
 
-      const location = normalizeChangeId(entry.name);
-      const changeDir = join(baseChangesDir, location.directory);
-      const yamlContent = await readIfExists(join(changeDir, ".openspec.yaml"));
-      if (!yamlContent) {
-        continue;
+      const meta = await readMetaFromDir(
+        join(dir, entry.name),
+        entry.name,
+        undefined,
+        worktreePath
+      );
+      if (meta) {
+        metas.push(meta);
       }
-
-      const proposalContent = await readIfExists(join(changeDir, "proposal.md"));
-      const tasksContent = await readIfExists(join(changeDir, "tasks.md"));
-      const status = parseYamlStatus(yamlContent);
-      const date = parseYamlCreated(yamlContent);
-      const why = proposalContent ? parseWhySummary(proposalContent) : "";
-      const taskCounts = tasksContent ? countTasks(tasksContent) : { totalTasks: 0, doneTasks: 0 };
-
-      metas.push({
-        id: location.changeId,
-        title: toTitleCase(stripArchivePrefix(entry.name)),
-        status: location.archived ? "archived" : status,
-        why,
-        totalTasks: taskCounts.totalTasks,
-        doneTasks: taskCounts.doneTasks,
-        hasDesign: Boolean(await readIfExists(join(changeDir, "design.md"))),
-        date,
-      });
     }
 
-    const archiveDir = join(baseChangesDir, "archive");
-    try {
-      const archiveEntries = await fs.readdir(archiveDir, { withFileTypes: true });
-      for (const entry of archiveEntries) {
-        if (!entry.isDirectory()) {
-          continue;
-        }
-
-        const location = normalizeChangeId(entry.name);
-        const changeDir = join(archiveDir, location.directory);
-        const yamlContent = await readIfExists(join(changeDir, ".openspec.yaml"));
-        if (!yamlContent) {
-          continue;
-        }
-
-        const proposalContent = await readIfExists(join(changeDir, "proposal.md"));
-        const tasksContent = await readIfExists(join(changeDir, "tasks.md"));
-        const date = parseYamlCreated(yamlContent);
-        const taskCounts = tasksContent
-          ? countTasks(tasksContent)
-          : { totalTasks: 0, doneTasks: 0 };
-
-        metas.push({
-          id: location.changeId,
-          title: toTitleCase(stripArchivePrefix(entry.name)),
-          status: "archived",
-          why: proposalContent ? parseWhySummary(proposalContent) : "",
-          totalTasks: taskCounts.totalTasks,
-          doneTasks: taskCounts.doneTasks,
-          hasDesign: Boolean(await readIfExists(join(changeDir, "design.md"))),
-          date,
-        });
-      }
-    } catch {
-      // archive directory absent is fine.
-    }
-
-    return metas.sort((left, right) => {
-      const leftTime = new Date(left.date).getTime();
-      const rightTime = new Date(right.date).getTime();
-      return rightTime - leftTime;
-    });
+    return metas;
   } catch {
     return [];
   }
+}
+
+async function readArchiveDir(dir: string): Promise<ProposalMeta[]> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const metas: ProposalMeta[] = [];
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      const meta = await readMetaFromDir(join(dir, entry.name), entry.name, "archived");
+      if (meta) {
+        metas.push(meta);
+      }
+    }
+
+    return metas;
+  } catch {
+    return [];
+  }
+}
+
+async function readWorktreesActiveDirs(worktreesRoot: string): Promise<ProposalMeta[]> {
+  try {
+    const entries = await fs.readdir(worktreesRoot, { withFileTypes: true });
+    const worktreeMetas = await Promise.all(
+      entries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => {
+          const worktreePath = resolve(worktreesRoot, entry.name);
+          return readActiveDir(join(worktreePath, "openspec", "changes"), worktreePath);
+        })
+    );
+
+    return worktreeMetas.flat();
+  } catch {
+    return [];
+  }
+}
+
+function byCreatedDesc(left: ProposalMeta, right: ProposalMeta): number {
+  const leftTime = new Date(left.date).getTime();
+  const rightTime = new Date(right.date).getTime();
+  return rightTime - leftTime;
+}
+
+export async function readProposalFiles(projectPath: string): Promise<ProposalMeta[]> {
+  const baseChangesDir = join(projectPath, "openspec", "changes");
+  try {
+    const fromMain = await readActiveDir(baseChangesDir);
+    const fromArchive = await readArchiveDir(join(baseChangesDir, "archive"));
+    const fromWorktrees = await readWorktreesActiveDirs(join(projectPath, ".worktrees"));
+    const deduped = new Map<string, ProposalMeta>();
+
+    for (const meta of fromMain) {
+      deduped.set(meta.id, meta);
+    }
+    for (const meta of fromArchive) {
+      deduped.set(meta.id, meta);
+    }
+    for (const meta of fromWorktrees) {
+      deduped.set(meta.id, meta);
+    }
+
+    return Array.from(deduped.values()).sort(byCreatedDesc);
+  } catch {
+    return [];
+  }
+}
+
+export async function findProposalMetaById(
+  projectPath: string,
+  changeId: string
+): Promise<ProposalMeta | null> {
+  const proposals = await readProposalFiles(projectPath);
+  return proposals.find((proposal) => proposal.id === changeId) ?? null;
 }
 
 export async function resolveChangeDir(
@@ -191,6 +244,33 @@ export async function resolveChangeDir(
   if (await readIfExists(join(archiveDir, ".openspec.yaml"))) {
     return archiveDir;
   }
+
+  try {
+    const worktreeEntries = await fs.readdir(join(projectPath, ".worktrees"), {
+      withFileTypes: true,
+    });
+
+    for (const entry of worktreeEntries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      const worktreeDir = join(
+        projectPath,
+        ".worktrees",
+        entry.name,
+        "openspec",
+        "changes",
+        changeId
+      );
+      if (await readIfExists(join(worktreeDir, ".openspec.yaml"))) {
+        return worktreeDir;
+      }
+    }
+  } catch {
+    return null;
+  }
+
   return null;
 }
 

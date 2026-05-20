@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a new feature or improvement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the scenario and value, not just the conclusion.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      placeholder: What pain point are you trying to address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: How do you want this to work?
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Expected impact
+      placeholder: What value would this change bring?
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      placeholder: Links, sketches, screenshots, or notes

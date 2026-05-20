@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible issue
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide reproducible details so the issue can be diagnosed quickly.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Issue summary
+      description: What happened?
+      placeholder: Briefly describe the problem
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Describe how to reproduce it step by step
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      placeholder: What should have happened
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      placeholder: What actually happened
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: e.g. 0.9.0 / commit hash / build version
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: OS, architecture, Electron version, etc.
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      placeholder: Logs, screenshots, recordings, or extra notes
