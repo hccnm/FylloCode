@@ -48,7 +48,7 @@
 - [x] 5.2 在同一处把 `reminderContext` 的字段从 `{ changeId: form.changeId, stageIndex: form.stageIndex, runId: form.runId }` 改为 `{ changeId: form.changeId, stageIndex: form.stageIndex, runId: form.runId, worktreePath: runMeta.worktreePath }`。
 - [x] 5.3 在 `proposal:archive` handler 中，找到 `new AcpSession(...)` 创建处，同样把 `cwd: projectPath` 改为 `cwd: runMeta.worktreePath ?? projectPath`，`reminderContext` 增加 `worktreePath: runMeta.worktreePath`。
 - [x] 5.4 stage stream handler 当前在 `onReady` 里需要拿到 `runMeta`：检查现有逻辑是否已经 `loadApplyRunMeta` 了 runMeta；若未加载（早期实现仅用 form 字段构造 prompt），则在 `onReady` 早期阶段补一次 `const runMeta = await loadApplyRunMeta(projectPath, form.changeId)`，仅用其 worktreePath 字段；若 `runMeta` 为 null（异常状态）则按现有 cwd 行为 fallback 到 `projectPath`。
-- [ ] 5.5 验收：手工 dry-run（启动 FylloCode → 创建 git 项目 → 走一次完整 apply → archive 流程），确认旧 ApplyRunMeta 加载与新流程行为完全等价；`pnpm typecheck` 通过。
+- [x] 5.5 验收：手工 dry-run（启动 FylloCode → 创建 git 项目 → 走一次完整 apply → archive 流程），确认旧 ApplyRunMeta 加载与新流程行为完全等价；`pnpm typecheck` 通过。
 
 ## 6. apply-run-store 序列化兼容性
 
@@ -62,8 +62,8 @@
 
 ## 7. dogfood 与零回归验证
 
-- [ ] 7.1 启动 FylloCode 开发环境（`pnpm dev`），打开任意 git 项目，触发一次 chat → create-proposal 调用，确认 fyllo-specs MCP 调用成功（agent 在新 schema 下传入 `targetPath: <projectPath>`，工具正常返回 state）。
-- [ ] 7.2 同一项目跑一次 apply（任意 stage）→ archive 流程，确认 stage stream 与 archive stream 正常完成；`run.json` / `archive.json` 落盘字段无 `worktreePath` 噪声。
-- [ ] 7.3 用旧版 FylloCode 已经留下的 ApplyRunMeta JSON（手工准备一份不含 worktreePath 的 run.json），加载后跑一次 archive，确认行为零回归。
+- [x] 7.1 启动 FylloCode 开发环境（`pnpm dev`），打开任意 git 项目，触发一次 chat → create-proposal 调用，确认 fyllo-specs MCP 调用成功（agent 在新 schema 下传入 `targetPath: <projectPath>`，工具正常返回 state）。
+- [x] 7.2 同一项目跑一次 apply（任意 stage）→ archive 流程，确认 stage stream 与 archive stream 正常完成；`run.json` / `archive.json` 落盘字段无 `worktreePath` 噪声。
+- [x] 7.3 用旧版 FylloCode 已经留下的 ApplyRunMeta JSON（手工准备一份不含 worktreePath 的 run.json），加载后跑一次 archive，确认行为零回归。
 - [x] 7.4 `pnpm build` 与 `pnpm lint` 通过（不引入新的告警）。
-- [ ] 7.5 验收：所有 7.1–7.4 检查通过；FylloCode 应用本身可用，所有 apply / archive 历史数据可正常加载。
+- [x] 7.5 验收：所有 7.1–7.4 检查通过；FylloCode 应用本身可用，所有 apply / archive 历史数据可正常加载。

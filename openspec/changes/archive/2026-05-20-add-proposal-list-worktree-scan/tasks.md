@@ -55,17 +55,17 @@
 
 ## 4. dogfood 与零回归验证
 
-- [ ] 4.1 启动 FylloCode（`pnpm dev`）打开任一 git 项目；先用 P2 的 chat 编排创建一个 worktree change（流程：用户同意 propose → agent 跑 worktree add → 调 create-proposal 落 artifacts 到 `.worktrees/foo/`）。
-- [ ] 4.2 进入 `/proposal` 列表页，确认看到该 change：
+- [x] 4.1 启动 FylloCode（`pnpm dev`）打开任一 git 项目；先用 P2 的 chat 编排创建一个 worktree change（流程：用户同意 propose → agent 跑 worktree add → 调 create-proposal 落 artifacts 到 `.worktrees/foo/`）。
+- [x] 4.2 进入 `/proposal` 列表页，确认看到该 change：
   - 4.2.1 卡片标题为 worktree 内的 change name 标题化。
   - 4.2.2 status badge 旁边出现 worktree 标记。
   - 4.2.3 hover 标记看到完整 worktree 绝对路径。
-- [ ] 4.3 点击该卡片进入详情页，确认能正确读到 proposal.md / design.md / specs / tasks 内容（来自 worktree 内的 artifacts）。
-- [ ] 4.4 在详情页触发一次 apply（任一 stage）；从主进程 logger / `data/projects/<encoded>/apply-runs/<changeId>/run.json` 中确认 `worktreePath` 字段被写入（值等于 worktree 绝对路径）；apply ACP session cwd 等于 worktree 绝对路径（可在 logger 中 grep "cwd"）。
-- [ ] 4.5 用一个非 git 项目（`template: "empty"`）确认列表完全等价于改造前：worktree 标记不出现；apply / archive cwd 仍为主仓库；行为零回归。
-- [ ] 4.6 已经 archive 完成的旧 change（`archive/<date>-<id>`）仍在列表显示，状态为 archived；与可能并存的 worktree 来源 active change 不冲突（如果存在异常状态）。
+- [x] 4.3 点击该卡片进入详情页，确认能正确读到 proposal.md / design.md / specs / tasks 内容（来自 worktree 内的 artifacts）。
+- [x] 4.4 在详情页触发一次 apply（任一 stage）；从主进程 logger / `data/projects/<encoded>/apply-runs/<changeId>/run.json` 中确认 `worktreePath` 字段被写入（值等于 worktree 绝对路径）；apply ACP session cwd 等于 worktree 绝对路径（可在 logger 中 grep "cwd"）。
+- [x] 4.5 用一个非 git 项目（`template: "empty"`）确认列表完全等价于改造前：worktree 标记不出现；apply / archive cwd 仍为主仓库；行为零回归。
+- [x] 4.6 已经 archive 完成的旧 change（`archive/<date>-<id>`）仍在列表显示，状态为 archived；与可能并存的 worktree 来源 active change 不冲突（如果存在异常状态）。
 - [x] 4.7 `pnpm build` / `pnpm lint` / `pnpm typecheck` 全部通过。
-- [ ] 4.8 验收：4.1–4.7 全部通过。
+- [x] 4.8 验收：4.1–4.7 全部通过。
 
 ## 5. 文档与下游对齐
 

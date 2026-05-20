@@ -40,8 +40,8 @@
 
 ## 5. dogfood 与零回归验证
 
-- [ ] 5.1 准备：FylloCode 自身仓库（git 项目）。前置 P1 / P2 / P3 都已 archive 落 `openspec/specs/`；本任务在 P3 完成基础上落地。
-- [ ] 5.2 全成路径 dogfood：
+- [x] 5.1 准备：FylloCode 自身仓库（git 项目）。前置 P1 / P2 / P3 都已 archive 落 `openspec/specs/`；本任务在 P3 完成基础上落地。
+- [x] 5.2 全成路径 dogfood：
   - 5.2.1 chat 阶段创建一个新 change（worktree 创建落 `.worktrees/<changeName>`）。
   - 5.2.2 走完 apply（任意 stage）。
   - 5.2.3 触发 archive；从 logger 与 messages.jsonl 中确认：
@@ -53,19 +53,19 @@
     - `git -C <main> worktree list` 不含该 worktree。
     - `git -C <main> branch` 不含 `proposal/<changeName>`。
     - main 当前分支 HEAD 含归档 commit（`git log -1` 可见），commit 内文件包含 OpenSpec 文件归档移动。
-- [ ] 5.3 merge 冲突 dogfood：
+- [x] 5.3 merge 冲突 dogfood：
   - 5.3.1 chat 阶段创建 worktree change，apply 完成。
   - 5.3.2 在 archive 触发**之前**，给 main 加一个不相关的 commit（例如 `git -C <main> commit --allow-empty -m "trigger conflict"`），让 main 推进到 worktree 创建之后。
   - 5.3.3 触发 archive。预期：agent 完成 archive-change + commit 后执行 merge --ff-only 失败，stderr 含 "Not possible to fast-forward"；agent 把 stderr 完整复述给用户；agent **不**继续执行 worktree remove / branch delete；archive ACP session 等待用户。
   - 5.3.4 验证 worktree 与 branch 仍保留（用户可手动 rebase 或普通 merge 后再继续）。
-- [ ] 5.4 worktreePath 为空 dogfood（旧 ApplyRunMeta）：
+- [x] 5.4 worktreePath 为空 dogfood（旧 ApplyRunMeta）：
   - 5.4.1 找一个 P3 启用之前的 ApplyRunMeta JSON（手工准备一份不含 worktreePath 字段的 run.json）。
   - 5.4.2 触发 archive。预期：archive ACP cwd === projectPath；agent 完成 archive-change + commit 后**不**执行 merge / worktree remove / branch delete；行为与多 worktree 工作流引入前完全等价。
-- [ ] 5.5 非 git 项目 dogfood：
+- [x] 5.5 非 git 项目 dogfood：
   - 5.5.1 在 FylloCode 创建一个 `template: "empty"` 项目，其中无 `.git`。
   - 5.5.2 走完一次 chat → apply → archive 流程；预期与 5.4 等价。
-- [ ] 5.6 `pnpm build` / `pnpm lint` / `pnpm typecheck` 全部通过；不引入新告警。
-- [ ] 5.7 验收：5.2 / 5.3 / 5.4 / 5.5 / 5.6 全部通过；记录 dogfood 结果到 commit/PR 描述。
+- [x] 5.6 `pnpm build` / `pnpm lint` / `pnpm typecheck` 全部通过；不引入新告警。
+- [x] 5.7 验收：5.2 / 5.3 / 5.4 / 5.5 / 5.6 全部通过；记录 dogfood 结果到 commit/PR 描述。
 
 ## 6. 文档与实施顺序对齐
 
@@ -74,7 +74,7 @@
 
 ## 7. 验收总闸
 
-- [ ] 7.1 1.1 - 6.2 全部勾选完成。
-- [ ] 7.2 multi-worktree 工作流端到端闭环：chat → propose → 创建 worktree → apply 在 worktree → archive 完成后 worktree 自动清理 → main 多一次 fast-forward merge commit。
-- [ ] 7.3 旧 ApplyRunMeta / 非 git 项目行为完全等价于本能力引入前。
-- [ ] 7.4 OpenSpec change 状态从 `applying` 顺利变为 `archived`，proposal 详情页显示 archived，list 中（worktree 已删）该 change 不再显示 worktree 标记。
+- [x] 7.1 1.1 - 6.2 全部勾选完成。
+- [x] 7.2 multi-worktree 工作流端到端闭环：chat → propose → 创建 worktree → apply 在 worktree → archive 完成后 worktree 自动清理 → main 多一次 fast-forward merge commit。
+- [x] 7.3 旧 ApplyRunMeta / 非 git 项目行为完全等价于本能力引入前。
+- [x] 7.4 OpenSpec change 状态从 `applying` 顺利变为 `archived`，proposal 详情页显示 archived，list 中（worktree 已删）该 change 不再显示 worktree 标记。
