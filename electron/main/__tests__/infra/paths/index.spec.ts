@@ -4,7 +4,7 @@ import { is } from "@electron-toolkit/utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAppUnpackedPath, getResourcesPath } from "@main/infra/paths";
 
-const tempRoot = `/private/tmp/fyllocode-resources-paths-${Math.random().toString(36).slice(2)}`;
+const tempRoot = `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-resources-paths-${Math.random().toString(36).slice(2)}`;
 const resourcesPath = join(tempRoot, "FylloCode.app", "Contents", "Resources");
 
 function setProcessCwd(path: string): void {

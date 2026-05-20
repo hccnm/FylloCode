@@ -5,7 +5,7 @@ import { IntegrationChannels } from "@shared/types/channels";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 const { tempRoot } = vi.hoisted(() => ({
-  tempRoot: `/private/tmp/fyllocode-integration-ipc-${Math.random().toString(36).slice(2)}`,
+  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-integration-ipc-${Math.random().toString(36).slice(2)}`,
 }));
 
 const mocks = vi.hoisted(() => ({

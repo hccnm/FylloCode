@@ -4,7 +4,7 @@ import type { UIMessage, TextUIPart } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
 import { prependReminderToLastUserMessage } from "@main/infra/storage/message-reminder-store";
 
-const tempRoot = `/private/tmp/fyllocode-message-reminder-${Math.random().toString(36).slice(2)}`;
+const tempRoot = `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-message-reminder-${Math.random().toString(36).slice(2)}`;
 
 function userMessage(id: string, text: string): UIMessage<MessageMeta> {
   return {

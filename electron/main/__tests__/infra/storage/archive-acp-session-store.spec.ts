@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ArchiveRunMeta } from "@shared/types/proposal";
 
 const { tempRoot, loggerWarn } = vi.hoisted(() => ({
-  tempRoot: `/private/tmp/fyllocode-archive-acp-session-store-${Math.random().toString(36).slice(2)}`,
+  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-archive-acp-session-store-${Math.random().toString(36).slice(2)}`,
   loggerWarn: vi.fn(),
 }));
 

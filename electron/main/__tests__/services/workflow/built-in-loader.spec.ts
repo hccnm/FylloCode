@@ -3,7 +3,7 @@ import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { tempRoot } = vi.hoisted(() => ({
-  tempRoot: `/private/tmp/fyllocode-built-in-workflows-${Math.random().toString(36).slice(2)}`,
+  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-built-in-workflows-${Math.random().toString(36).slice(2)}`,
 }));
 
 vi.mock("@main/infra/paths", () => ({

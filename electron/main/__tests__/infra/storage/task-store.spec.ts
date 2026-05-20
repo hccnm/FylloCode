@@ -4,7 +4,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import type { TaskItem } from "@shared/types/task";
 
 const { tempRoot } = vi.hoisted(() => ({
-  tempRoot: `/private/tmp/fyllocode-task-store-${Math.random().toString(36).slice(2)}`,
+  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-task-store-${Math.random().toString(36).slice(2)}`,
 }));
 
 vi.mock("@main/infra/paths", () => ({

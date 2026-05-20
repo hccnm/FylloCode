@@ -5,7 +5,7 @@ import type { ProposalMeta } from "@shared/types/proposal";
 import type { WorkflowTemplate } from "@shared/types/workflow";
 
 const { tempRoot, mocks } = vi.hoisted(() => ({
-  tempRoot: `/private/tmp/fyllocode-apply-run-service-${Math.random().toString(36).slice(2)}`,
+  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-apply-run-service-${Math.random().toString(36).slice(2)}`,
   mocks: {
     findProposalMetaById: vi.fn(),
     loadAllWorkflowTemplates: vi.fn(),

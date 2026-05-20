@@ -5,7 +5,7 @@ import type { MessageMeta } from "@shared/types/chat";
 import type { ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
 
 const { tempRoot, loggerWarn } = vi.hoisted(() => ({
-  tempRoot: `/private/tmp/fyllocode-apply-run-${Math.random().toString(36).slice(2)}`,
+  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-apply-run-${Math.random().toString(36).slice(2)}`,
   loggerWarn: vi.fn(),
 }));
 

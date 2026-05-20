@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 const { tempRoot } = vi.hoisted(() => ({
-  tempRoot: `/private/tmp/fyllocode-window-state-${Math.random().toString(36).slice(2)}`,
+  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-window-state-${Math.random().toString(36).slice(2)}`,
 }));
 
 vi.mock("@main/infra/paths", () => ({
