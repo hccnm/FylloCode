@@ -50,7 +50,7 @@ ACP agent 进程池管理、session 生命周期、sessionUpdate 映射、sessio
 
 ### Requirement: ACP session 生命周期管理
 
-系统 SHALL 在每次 `streamMessage` 时，将“FylloCode 持久化的 `acpSessionId`”视为恢复线索，而非“当前 agent 进程内 session 必然仍然存活”的证明。`acpSessionId` 的读取与持久化 SHALL 通过 `AcpSessionOpts.sessionStore`（`AcpSessionStore` 接口）完成，`AcpSession` 模块自身 SHALL NOT 引用 `electron/main/infra/storage/session-store.ts`。
+系统 SHALL 在每次 `streamMessage` 时，将“FylloCode 持久化的 `acpSessionId`”视为恢复线索，而不是“当前 agent 进程内 session 一定还活着”的证明。`acpSessionId` 的读取与持久化 SHALL 通过 `AcpSessionOpts.sessionStore`（`AcpSessionStore` 接口）完成，`AcpSession` 模块自身 SHALL NOT 引用 `electron/main/infra/storage/session-store.ts`。
 
 当不存在持久化的 `acpSessionId` 时（`sessionStore.loadAcpSessionId()` 返回 `null`），系统 SHALL 调用 `connection.newSession()` 创建真实 ACP session；当存在持久化 `acpSessionId` 时，系统 SHALL 先尝试直接对该 `sessionId` 调用 `connection.prompt()` 发起当前 turn，而不是默认先调用 `resumeSession` 或 `loadSession`。
 
@@ -71,7 +71,7 @@ ACP agent 进程池管理、session 生命周期、sessionUpdate 映射、sessio
 
 当 `AcpSession.start` 本次调用真正执行了 `connection.newSession()`（包括首次创建与所有恢复失败后的 fresh-session fallback）时，系统 SHALL 在 `newSession` 成功返回后、调用 `connection.prompt()` 之前尝试注入 system-reminder：调用 `resolveSystemReminder({ owner, projectPath, cwd, fylloSessionId, agentId, ...opts.reminderContext })`，若返回非 null 的 `TextUIPart`，在 `try/catch` 中 `await opts.onReminderInjected(reminderPart)`（捕获任何异常仅 `logger.error` 记录、不上抛、不中断 stream），再把 reminder block 插入 `connection.prompt` 的 `prompt` 数组首位。`resumeSession` 与 `loadSession` 成功分支 SHALL NOT 注入 reminder。
 
-当恢复流选择 `loadSession`，且 FylloCode 对该 owner/session 已拥有本地持久化历史消息时，agent 通过 `session/update` 回放的历史消息 SHALL 被视为“恢复控制面副作用”而非新的 UI 消息来源。系统 SHALL 抑制这些 replay 事件的消息流落盘与 UI 组装，避免重复消息；但 `available_commands_update`、`session_info_update` 等 session 级元数据更新 SHALL 继续生效。
+当恢复流选择 `loadSession`，且 FylloCode 对该 owner/session 已拥有本地持久化历史消息时，agent 通过 `session/update` 回放的历史消息 SHALL 被视为“恢复控制面副作用”，而不是新的 UI 消息来源。系统 SHALL 抑制这些 replay 事件的消息流落盘与 UI 组装，避免重复消息；但 `available_commands_update`、`session_info_update` 等 session 级元数据更新 SHALL 继续生效。
 
 若最终退化为 `newSession + 本地历史重建`，系统 SHALL 将其定义为 best-effort 恢复：使用本地持久化历史消息和当前用户输入重建上下文，但 SHALL NOT 声称该路径能无损还原 ACP adapter 的内部 session state。
 
@@ -83,14 +83,16 @@ ACP agent 进程池管理、session 生命周期、sessionUpdate 映射、sessio
 
 这两条 `system-reminder` 都 MAY 被持久化到 FylloCode 本地消息文件；前端由于已屏蔽 `system-reminder` 的 UI 展示，SHALL NOT 将它们作为用户可见消息展示出来。
 
+`AcpSession.cancel()` SHALL 是幂等的，并且 SHALL 在 `acpSessionId` 尚未解析时也记录取消意图。若当前 turn 在 ACP 连接、session 创建/恢复或 prompt 发起之前被取消，`AcpSession.start` SHALL 在后续 setup await 完成后检查取消状态，并 SHALL NOT 为该 turn 调用 `connection.prompt(...)`。若取消后才解析出 `acpSessionId`，系统 MAY 尝试调用 `connection.cancel({ sessionId: acpSessionId })` 做 best-effort 清理，但 SHALL NOT 因取消清理失败而把该 turn 恢复为活跃流。
+
 #### Scenario: 首次发送消息创建新 ACP session
 
-- **WHEN** IPC handler 收到 `chat:stream:message`，且该 `sessionId` 无持久化的 `acpSessionId`（`sessionStore.loadAcpSessionId()` 返回 `null`）
+- **WHEN** IPC handler 收到 `chat:stream:message`，且该 `sessionId` 没有持久化的 `acpSessionId`（`sessionStore.loadAcpSessionId()` 返回 `null`）
 - **THEN** 调用 `connection.newSession({ cwd, mcpServers })`，其中 `mcpServers` 为 `getBundledMcpServers({ projectPath })` 的返回值
 - **AND** 在正常启用内置 MCP 的场景下，`mcpServers` 至少包含一个 `name === "fyllo-specs"` 的 spec
 - **AND** `newSession` 返回后立即调用 `await sessionStore.persistAcpSessionId(acpSessionId)` 持久化
 - **AND** emit `{ type: "session_id_resolved", acpSessionId }` 事件
-- **AND** 调用 `resolveSystemReminder(...)`；若返回非 null 的 `TextUIPart`，在 `try/catch` 中 `await onReminderInjected(reminderPart)`（异常仅 `logger.error`、不上抛），再把 reminder part 置于 `connection.prompt()` 的 `prompt` 数组首位
+- **AND** 调用 `resolveSystemReminder(...)`；若返回非 null 的 `TextUIPart`，在 `try/catch` 中 `await onReminderInjected(reminderPart)`（异常仅 `logger.error`、不上抛），再把 reminder part 放到 `connection.prompt()` 的 `prompt` 数组首位
 
 #### Scenario: 持久化 ACP session 仍然存活时 direct prompt 成功
 
@@ -104,7 +106,7 @@ ACP agent 进程池管理、session 生命周期、sessionUpdate 映射、sessio
 #### Scenario: Direct prompt 因 session missing 失败后按 capability 进入恢复流
 
 - **WHEN** IPC handler 收到 `chat:stream:message`，且 `sessionStore.loadAcpSessionId()` 返回非空的 `acpSessionId`
-- **AND** 对 `connection.prompt({ sessionId: acpSessionId, prompt })` 的调用在当前 turn 未收到任何 `session/update` 事件之前失败
+- **AND** 对 `connection.prompt({ sessionId: acpSessionId, prompt })` 的调用在当前 turn 尚未收到任何 `session/update` 事件之前失败
 - **AND** 该失败被 FylloCode 归类为“session missing”
 - **THEN** 系统 SHALL 根据 agent initialize 时声明的 capabilities 选择恢复路径
 - **AND** 若 agent 支持 `session.resume`，则先调用 `connection.resumeSession({ sessionId: acpSessionId, cwd, mcpServers })`
@@ -155,8 +157,17 @@ ACP agent 进程池管理、session 生命周期、sessionUpdate 映射、sessio
 #### Scenario: 取消流式传输
 
 - **WHEN** IPC handler 收到 `chat:stream:cancel`，包含 `{ sessionId }`
-- **THEN** 调用 `connection.cancel({ sessionId: acpSessionId })` 取消当前 prompt
-- **AND** 通过 MessagePort 发送 `{ type: "done" }` 并关闭 port1
+- **THEN** 系统调用当前 chat turn 的 cancel 逻辑
+- **AND** 若当前 turn 已经解析出 `acpSessionId`，则调用 `connection.cancel({ sessionId: acpSessionId })` 取消当前 prompt
+- **AND** 若当前 turn 尚未解析出 `acpSessionId`，则记录取消意图，使后续 setup 不再发起 prompt
+
+#### Scenario: setup 期取消后不再发起 prompt
+
+- **WHEN** `AcpSession.start` 正在获取 ACP 进程、创建新 ACP session、或恢复 ACP session
+- **AND** 用户点击 stop 触发 `AcpSession.cancel()`
+- **THEN** `AcpSession.cancel()` 记录取消意图
+- **AND** setup 完成后该 turn 不调用 `connection.prompt(...)`
+- **AND** 该 turn 不再向 renderer 发送 assistant chunk
 
 #### Scenario: 禁用内置 MCP 环境变量在所有恢复路径生效
 

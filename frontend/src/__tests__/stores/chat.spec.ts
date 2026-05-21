@@ -63,6 +63,37 @@ const mockStatuses: Record<string, AcpAgentStatus> = {
   },
 };
 
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (error: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
+
+function prepareDraftConversation(): void {
+  const acpAgentsStore = useAcpAgentsStore();
+  acpAgentsStore.registry = mockRegistry;
+  acpAgentsStore.statuses = mockStatuses;
+
+  const projectStore = useProjectStore();
+  projectStore.currentProject = {
+    id: "project-1",
+    name: "Project 1",
+    path: "/tmp/project-1",
+    createdAt: new Date("2026-04-30T08:00:00.000Z"),
+    lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
+  };
+
+  useSessionStore().beginDraftSession();
+}
+
 describe("useChatStore", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -144,6 +175,81 @@ describe("useChatStore", () => {
     );
     expect(chatStore.streamError).toBeNull();
     expect(chatStore.chatStatus).toBe("submitted");
+  });
+
+  it("cancels the first draft send while session creation is still pending", async () => {
+    prepareDraftConversation();
+
+    const createDeferred = deferred<Awaited<ReturnType<typeof chatApi.createSession>>>();
+    vi.mocked(chatApi.createSession).mockReturnValueOnce(createDeferred.promise);
+
+    const chatStore = useChatStore();
+    const sendPromise = chatStore.sendMessage("hello world");
+
+    expect(chatStore.chatStatus).toBe("submitted");
+
+    chatStore.cancelStream();
+
+    expect(chatStore.chatStatus).toBe("ready");
+    expect(chatStore.cancelFn).toBeNull();
+    expect(chatStore.streamError).toBeNull();
+
+    createDeferred.resolve({
+      ok: true,
+      data: {
+        id: "session-setup",
+        projectId: "project-1",
+        agentId: "claude-code",
+        title: "hello world",
+        status: "ended",
+        turnCount: 0,
+        tokenUsage: { used: 0, size: 0 },
+        createdAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
+        updatedAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
+        messages: [],
+      },
+    });
+    await sendPromise;
+
+    const sessionStore = useSessionStore();
+    expect(chatStore.chatStatus).toBe("ready");
+    expect(chatApi.streamMessage).not.toHaveBeenCalled();
+    expect(chatApi.persistMessage).not.toHaveBeenCalled();
+    expect(sessionStore.activeSession?.messages).toHaveLength(0);
+  });
+
+  it("ignores a late stream error after cancelling before the first chunk", async () => {
+    prepareDraftConversation();
+
+    let callbacks: StreamCallbacks | null = null;
+    const cancel = vi.fn();
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+        callbacks = nextCallbacks;
+        return cancel;
+      }
+    );
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage("hello world");
+
+    expect(chatStore.chatStatus).toBe("submitted");
+    expect(callbacks).not.toBeNull();
+
+    chatStore.cancelStream();
+
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(chatStore.chatStatus).toBe("ready");
+    expect(chatStore.cancelFn).toBeNull();
+    expect(chatStore.streamError).toBeNull();
+
+    callbacks!.onError({
+      code: "stream_failed",
+      message: "late failure",
+    });
+
+    expect(chatStore.chatStatus).toBe("ready");
+    expect(chatStore.streamError).toBeNull();
   });
 
   it("updates the active session message list reactively for the first draft message", async () => {

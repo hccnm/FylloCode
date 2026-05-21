@@ -56,8 +56,12 @@ export const useChatStore = defineStore("chat", () => {
     cancelFn.value = null;
   }
 
-  function resetChatState(): void {
+  function invalidateActiveStreamRun(): void {
     beginStreamRun();
+  }
+
+  function resetChatState(): void {
+    invalidateActiveStreamRun();
     chatStatus.value = "ready";
     streamError.value = null;
     clearActiveStreamControl();
@@ -89,13 +93,12 @@ export const useChatStore = defineStore("chat", () => {
     activeSession: Session,
     projectId: string,
     prompt: string,
-    sessionStore: ReturnType<typeof useSessionStore>
+    sessionStore: ReturnType<typeof useSessionStore>,
+    streamRunId: number
   ): void {
     const assembler = useUIMessageAssembler(ref(activeSession.messages), {
       sessionId: activeSession.id,
     });
-
-    const streamRunId = beginStreamRun();
 
     cancelFn.value = chatApi.streamMessage(
       activeSession.id,
@@ -104,6 +107,10 @@ export const useChatStore = defineStore("chat", () => {
       prompt,
       {
         onChunk(data) {
+          if (!isCurrentStreamRun(streamRunId)) {
+            return;
+          }
+
           switch (data.kind) {
             case "session_info_update":
               activeSession.title = data.title;
@@ -127,7 +134,7 @@ export const useChatStore = defineStore("chat", () => {
             case "reasoning_delta":
             case "tool_call_start":
             case "tool_call_update":
-              if (isCurrentStreamRun(streamRunId) && chatStatus.value === "submitted") {
+              if (chatStatus.value === "submitted") {
                 chatStatus.value = "streaming";
               }
 
@@ -140,12 +147,14 @@ export const useChatStore = defineStore("chat", () => {
           }
         },
         onDone(done) {
-          assembler.resetActive();
-          if (isCurrentStreamRun(streamRunId)) {
-            clearActiveStreamControl();
-            streamError.value = null;
-            chatStatus.value = "ready";
+          if (!isCurrentStreamRun(streamRunId)) {
+            return;
           }
+
+          assembler.resetActive();
+          clearActiveStreamControl();
+          streamError.value = null;
+          chatStatus.value = "ready";
           activeSession.tokenUsage = {
             ...activeSession.tokenUsage,
             used: activeSession.tokenUsage.used + done.totalTokens,
@@ -155,12 +164,14 @@ export const useChatStore = defineStore("chat", () => {
           sessionStore.sortSessions();
         },
         onError(err) {
-          assembler.resetActive();
-          if (isCurrentStreamRun(streamRunId)) {
-            clearActiveStreamControl();
-            streamError.value = err;
-            chatStatus.value = "error";
+          if (!isCurrentStreamRun(streamRunId)) {
+            return;
           }
+
+          assembler.resetActive();
+          clearActiveStreamControl();
+          streamError.value = err;
+          chatStatus.value = "error";
           activeSession.status = "ended";
           activeSession.updatedAt = new Date();
           sessionStore.sortSessions();
@@ -186,6 +197,8 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     let activeSession = currentSession;
+    const streamRunId = beginStreamRun();
+    streamError.value = null;
 
     if (!activeSession) {
       const draftAgentIdSnapshot = sessionStore.draftAgentId;
@@ -198,7 +211,6 @@ export const useChatStore = defineStore("chat", () => {
         return;
       }
 
-      streamError.value = null;
       chatStatus.value = "submitted";
       const fallbackTitleSnapshot = buildFallbackSessionTitle(prompt);
 
@@ -208,9 +220,14 @@ export const useChatStore = defineStore("chat", () => {
           agentId: draftAgentIdSnapshot,
           title: fallbackTitleSnapshot,
         });
+        if (!isCurrentStreamRun(streamRunId)) {
+          return;
+        }
         activeSession = sessionStore.activeSession ?? createdSession;
       } catch (error: unknown) {
-        chatStatus.value = "ready";
+        if (isCurrentStreamRun(streamRunId)) {
+          chatStatus.value = "ready";
+        }
         toast.add({
           title: "创建会话失败",
           description: error instanceof Error ? error.message : String(error),
@@ -220,11 +237,14 @@ export const useChatStore = defineStore("chat", () => {
       }
     }
 
-    streamError.value = null;
+    if (!isCurrentStreamRun(streamRunId)) {
+      return;
+    }
+
     const userMessage = queueUserMessage(activeSession, prompt, sessionStore);
     chatStatus.value = "submitted";
     persistMessage(activeSession.id, projectIdSnapshot, userMessage);
-    streamSessionMessage(activeSession, projectIdSnapshot, prompt, sessionStore);
+    streamSessionMessage(activeSession, projectIdSnapshot, prompt, sessionStore, streamRunId);
   }
 
   function setMode(newMode: ModeType): void {
@@ -232,7 +252,21 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   function cancelStream(): void {
-    cancelFn.value?.();
+    if (chatStatus.value !== "submitted" && chatStatus.value !== "streaming") {
+      return;
+    }
+
+    const currentCancel = cancelFn.value;
+    invalidateActiveStreamRun();
+    currentCancel?.();
+    clearActiveStreamControl();
+    streamError.value = null;
+    chatStatus.value = "ready";
+
+    const sessionStore = useSessionStore();
+    if (sessionStore.activeSession) {
+      sessionStore.activeSession.status = "ended";
+    }
   }
 
   return {

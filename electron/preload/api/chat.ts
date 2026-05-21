@@ -54,6 +54,9 @@ export const chatApi = {
     prompt: string,
     callbacks: StreamCallbacks
   ): () => void {
+    let port: MessagePort | null = null;
+    let cancelled = false;
+
     // Invoke to trigger main to create MessagePort and start streaming
     void ipcRenderer
       .invoke(ChatStreamChannels.streamMessage, { sessionId, projectId, agentId, prompt })
@@ -66,7 +69,17 @@ export const chatApi = {
 
     // Receive the port from main
     ipcRenderer.once(ChatStreamChannels.streamPort, (event) => {
-      const port = event.ports[0];
+      port = event.ports[0] ?? null;
+      if (!port) {
+        return;
+      }
+
+      if (cancelled) {
+        port.close();
+        port = null;
+        return;
+      }
+
       port.onmessage = ({ data }) => {
         if (data.type === "chunk") callbacks.onChunk(data.data);
         else if (data.type === "done") callbacks.onDone(data.data);
@@ -78,7 +91,14 @@ export const chatApi = {
     });
 
     return () => {
-      ipcRenderer.invoke(ChatStreamChannels.streamCancel, { sessionId });
+      if (cancelled) {
+        return;
+      }
+
+      cancelled = true;
+      void ipcRenderer.invoke(ChatStreamChannels.streamCancel, { sessionId });
+      port?.close();
+      port = null;
     };
   },
 };

@@ -61,6 +61,7 @@ export interface AcpSessionOpts {
 export class AcpSession extends EventEmitter {
   private acpSessionId: string | null = null;
   private cancelled = false;
+  private readonly cancelledAcpSessionIds = new Set<string>();
   private readonly recoveryContext: RecoveryContext;
 
   constructor(private readonly opts: AcpSessionOpts) {
@@ -88,11 +89,19 @@ export class AcpSession extends EventEmitter {
 
   cancel(): void {
     this.cancelled = true;
-    const { agentId } = this.opts;
     const acpSessionId = this.acpSessionId;
     if (!acpSessionId) return;
 
-    getOrStartProcess(agentId)
+    this.cancelResolvedAcpSession(acpSessionId);
+  }
+
+  private cancelResolvedAcpSession(acpSessionId: string): void {
+    if (this.cancelledAcpSessionIds.has(acpSessionId)) {
+      return;
+    }
+
+    this.cancelledAcpSessionIds.add(acpSessionId);
+    getOrStartProcess(this.opts.agentId)
       .then(({ connection }) => connection.cancel({ sessionId: acpSessionId }))
       .catch(() => {});
   }
@@ -100,6 +109,10 @@ export class AcpSession extends EventEmitter {
   private async prepareStartContext(): Promise<StartContext | null> {
     const entry = await this.getProcessEntry();
     if (!entry) {
+      return null;
+    }
+    if (this.cancelled) {
+      logger.warn(`${this.logPrefix()} start aborted after ACP process acquisition`);
       return null;
     }
 
@@ -110,6 +123,12 @@ export class AcpSession extends EventEmitter {
       env: toAcpMcpServerEnv(spec.env),
     }));
     const persistedSessionId = await this.opts.sessionStore.loadAcpSessionId();
+    if (this.cancelled) {
+      logger.warn(
+        `${this.logPrefix(persistedSessionId)} start aborted after session metadata load`
+      );
+      return null;
+    }
     const runtimeState = createSessionRuntimeState();
 
     logger.info(
@@ -126,7 +145,12 @@ export class AcpSession extends EventEmitter {
 
   private async getProcessEntry(): Promise<Awaited<ReturnType<typeof getOrStartProcess>> | null> {
     try {
-      return await getOrStartProcess(this.opts.agentId);
+      const entry = await getOrStartProcess(this.opts.agentId);
+      if (this.cancelled) {
+        logger.warn(`${this.logPrefix()} start aborted after ACP process resolved`);
+        return null;
+      }
+      return entry;
     } catch (err: unknown) {
       const e = err as Error & { code?: string };
       logger.error(`${this.logPrefix()} failed to acquire ACP process`, err);
@@ -140,10 +164,13 @@ export class AcpSession extends EventEmitter {
   }
 
   private async runStartFlow(context: StartContext, prompt: string): Promise<void> {
+    this.throwIfCancelled("before start flow");
+
     if (await this.tryHandlePersistedSession(context, prompt)) {
       return;
     }
 
+    this.throwIfCancelled("before recovery flow");
     const recovery = await this.recoverSession({
       connection: context.entry.connection,
       initializeResponse: context.entry.initializeResponse,
@@ -153,6 +180,7 @@ export class AcpSession extends EventEmitter {
       prompt,
     });
 
+    this.throwIfCancelled("after recovery flow");
     await this.completeRecoveredPrompt(context, recovery, prompt);
   }
 
@@ -165,6 +193,7 @@ export class AcpSession extends EventEmitter {
 
     this.acpSessionId = persistedSessionId;
     logger.info(`${this.logPrefix(persistedSessionId)} attempting direct prompt`);
+    this.throwIfCancelled("before direct prompt");
 
     const directPromptResult = await this.tryDirectPrompt({
       connection: context.entry.connection,
@@ -173,6 +202,7 @@ export class AcpSession extends EventEmitter {
       prompt,
       runtimeState: context.runtimeState,
     });
+    this.throwIfCancelled("after direct prompt");
 
     if (directPromptResult.status === "completed") {
       logger.info(`${this.logPrefix(persistedSessionId)} direct prompt succeeded`);
@@ -207,15 +237,25 @@ export class AcpSession extends EventEmitter {
     }
 
     this.acpSessionId = recovery.sessionId;
+    if (this.cancelled) {
+      this.cancelResolvedAcpSession(recovery.sessionId);
+      logger.warn(
+        `${this.logPrefix(recovery.sessionId)} start aborted before persisting recovered session because session was cancelled`
+      );
+      return;
+    }
+
     await this.persistResolvedSession(recovery.sessionId);
 
     if (this.cancelled) {
+      this.cancelResolvedAcpSession(recovery.sessionId);
       logger.warn(
         `${this.logPrefix(recovery.sessionId)} start aborted before final prompt because session was cancelled`
       );
       return;
     }
 
+    this.throwIfCancelled("before resolving reminder");
     const reminderParts = await this.resolveReminderParts({
       createdNewSession: recovery.createdNewSession,
       recoveryHistoryReminder: recovery.recoveryHistoryReminder,
@@ -224,6 +264,7 @@ export class AcpSession extends EventEmitter {
       fylloSessionId: this.opts.fylloSessionId,
       agentId: this.opts.agentId,
     });
+    this.throwIfCancelled("after resolving reminder");
     const promptParts: PromptPart[] = [
       ...reminderParts.map((part) => ({ type: "text" as const, text: part.text })),
       { type: "text", text: prompt },
@@ -240,6 +281,7 @@ export class AcpSession extends EventEmitter {
       sessionId: recovery.sessionId,
       prompt: promptParts,
     });
+    this.throwIfCancelled("after prompt");
     this.emitDone(result);
   }
 
@@ -288,6 +330,18 @@ export class AcpSession extends EventEmitter {
     return parts.join("");
   }
 
+  private throwIfCancelled(stage: string): void {
+    if (!this.cancelled) {
+      return;
+    }
+
+    if (this.acpSessionId) {
+      this.cancelResolvedAcpSession(this.acpSessionId);
+    }
+    logger.warn(`${this.logPrefix(this.acpSessionId)} start aborted ${stage}`);
+    throw new Error("ACP session cancelled");
+  }
+
   private async tryDirectPrompt(args: {
     connection: ClientSideConnection;
     sessionHandlers: Map<string, (notification: SessionNotification) => void>;
@@ -300,6 +354,7 @@ export class AcpSession extends EventEmitter {
     | { status: "failed"; error: unknown }
   > {
     try {
+      this.throwIfCancelled("before direct prompt dispatch");
       logger.info(`${this.logPrefix(args.sessionId)} sending direct prompt`);
       const result = await this.runPrompt({
         connection: args.connection,
@@ -310,6 +365,9 @@ export class AcpSession extends EventEmitter {
       });
       return { status: "completed", result };
     } catch (error: unknown) {
+      if (this.cancelled) {
+        throw error;
+      }
       logger.error(`${this.logPrefix(args.sessionId)} direct prompt failed`, error);
       if (!args.runtimeState.observedSessionUpdate && isSessionMissingError(error)) {
         return { status: "recover" };
@@ -337,12 +395,14 @@ export class AcpSession extends EventEmitter {
 
     if (persistedSessionId && resumeSupported) {
       try {
+        this.throwIfCancelled("before resumeSession");
         logger.info(`${this.logPrefix(persistedSessionId)} attempting resumeSession`);
         await connection.resumeSession({
           sessionId: persistedSessionId,
           cwd: this.opts.cwd,
           mcpServers,
         });
+        this.throwIfCancelled("after resumeSession");
         logger.info(`${this.logPrefix(persistedSessionId)} resumeSession succeeded`);
         return {
           sessionId: persistedSessionId,
@@ -352,6 +412,9 @@ export class AcpSession extends EventEmitter {
           strategy: "resume_session",
         };
       } catch (error: unknown) {
+        if (this.cancelled) {
+          throw error;
+        }
         logger.warn(
           `[acp-session] resumeSession failed for ${persistedSessionId}, trying next recovery path`
         );
@@ -364,6 +427,7 @@ export class AcpSession extends EventEmitter {
 
     if (persistedSessionId && loadSupported) {
       try {
+        this.throwIfCancelled("before loadSession");
         runtimeState.suppressReplay = this.recoveryContext.hasPersistedHistory;
         runtimeState.suppressedReplayEvents = 0;
         this.acpSessionId = persistedSessionId;
@@ -375,6 +439,7 @@ export class AcpSession extends EventEmitter {
           cwd: this.opts.cwd,
           mcpServers,
         });
+        this.throwIfCancelled("after loadSession");
         logger.info(
           `${this.logPrefix(persistedSessionId)} loadSession succeeded; suppressedReplayEvents=${runtimeState.suppressedReplayEvents}`
         );
@@ -386,6 +451,9 @@ export class AcpSession extends EventEmitter {
           strategy: "load_session",
         };
       } catch (error: unknown) {
+        if (this.cancelled) {
+          throw error;
+        }
         logger.warn(
           `[acp-session] loadSession failed for ${persistedSessionId}, falling back to newSession`
         );
@@ -407,8 +475,12 @@ export class AcpSession extends EventEmitter {
         ? `${this.logPrefix(persistedSessionId)} falling back to fresh newSession recovery`
         : `${this.logPrefix()} creating fresh newSession`
     );
+    this.throwIfCancelled("before newSession");
     const created = await connection.newSession({ cwd: this.opts.cwd, mcpServers });
+    this.acpSessionId = created.sessionId;
+    this.throwIfCancelled("after newSession");
     const historyMessages = await this.recoveryContext.loadPersistedHistory();
+    this.throwIfCancelled("after loading persisted history");
     const recoveryHistoryReminder = buildHistoryReminder(historyMessages, prompt);
     logger.info(
       `${this.logPrefix(created.sessionId)} newSession created; historyMessages=${historyMessages.length}; historyReminder=${recoveryHistoryReminder ? "yes" : "no"}`
@@ -435,6 +507,10 @@ export class AcpSession extends EventEmitter {
     }
 
     const reminderParts: TextUIPart[] = [];
+    if (this.cancelled) {
+      return reminderParts;
+    }
+
     const reminderPart = await resolveSystemReminder({
       owner: this.opts.owner,
       projectPath: args.projectPath,
@@ -444,9 +520,17 @@ export class AcpSession extends EventEmitter {
       ...(this.opts.reminderContext ?? {}),
     });
 
+    if (this.cancelled) {
+      return reminderParts;
+    }
+
     if (reminderPart !== null) {
       await this.persistReminderPart(reminderPart);
       reminderParts.push(reminderPart);
+    }
+
+    if (this.cancelled) {
+      return reminderParts;
     }
 
     if (args.recoveryHistoryReminder !== null) {
@@ -478,7 +562,13 @@ export class AcpSession extends EventEmitter {
     sessionId: string;
     prompt: PromptPart[];
   }): Promise<unknown> {
+    this.throwIfCancelled("before prompt dispatch");
+
     const sessionHandler = (notification: SessionNotification): void => {
+      if (this.cancelled) {
+        return;
+      }
+
       args.runtimeState.observedSessionUpdate = true;
       const event = mapSessionUpdate(notification.update);
       if (!event) return;

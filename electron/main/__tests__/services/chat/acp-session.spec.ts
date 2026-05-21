@@ -69,6 +69,26 @@ function initializeResponse(overrides: Partial<InitializeResponse> = {}): Initia
   } as InitializeResponse;
 }
 
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (error: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
+
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe("AcpSession", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -122,6 +142,29 @@ describe("AcpSession", () => {
       sessionId: "acp-new",
       prompt: [reminderPart, { type: "text", text: "hello" }],
     });
+  });
+
+  it("records cancellation before acpSessionId resolves and does not prompt after setup", async () => {
+    const newSessionDeferred = deferred<{ sessionId: string }>();
+    mocks.connection.newSession.mockReturnValueOnce(newSessionDeferred.promise);
+
+    const session = await createSession();
+    const startPromise = session.start("hello");
+
+    await vi.waitFor(() => {
+      expect(mocks.connection.newSession).toHaveBeenCalledTimes(1);
+    });
+
+    session.cancel();
+
+    expect(mocks.connection.cancel).not.toHaveBeenCalled();
+
+    newSessionDeferred.resolve({ sessionId: "acp-new" });
+    await startPromise;
+    await flushMicrotasks();
+
+    expect(mocks.connection.prompt).not.toHaveBeenCalled();
+    expect(mocks.connection.cancel).toHaveBeenCalledWith({ sessionId: "acp-new" });
   });
 
   it("uses direct prompt first when persisted acpSessionId exists", async () => {
