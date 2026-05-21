@@ -118,8 +118,8 @@ describe("system-reminder templates", () => {
       createContext({ owner: "apply" })
     );
 
-    expect(chatReminder).toContain("fyllo-skills.guidelines");
-    expect(applyReminder).toContain("fyllo-skills.guidelines");
+    expect(chatReminder).toContain("mcp__fyllo_skills__guidelines");
+    expect(applyReminder).toContain("mcp__fyllo_skills__guidelines");
   });
 
   it("keeps detailed guideline template headings out of chat and apply reminders", () => {

@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { guidelinesTool } from "../src/tools/guidelines";
+import { loadPrompt } from "../src/utils/load-prompt";
 
 const promptPath = join(
   process.cwd(),
@@ -19,16 +19,8 @@ describe("fyllo-skills prompts", () => {
     expect(readFileSync(promptPath, "utf8").trim()).toBeTruthy();
   });
 
-  it("wraps the prompt in tool_instruction without state", () => {
-    const text = guidelinesTool();
-
-    expect(text).toContain("<tool_instruction>");
-    expect(text).toContain("</tool_instruction>");
-    expect(text).not.toContain("<state>");
-  });
-
   it("keeps the guidelines instruction concrete enough for repository authoring", () => {
-    const text = guidelinesTool();
+    const text = loadPrompt("guidelines");
 
     expect(text).toContain("## AGENTS.md Guidelines Index");
     expect(text).toContain("## Project Guidelines Index");
@@ -48,10 +40,20 @@ describe("fyllo-skills prompts", () => {
     expect(text).toContain("guidelines/DeveloperWorkflow.md");
     expect(text).toContain("Sources of Truth");
     expect(text).toContain("Verification");
+    expect(text).toContain("Frontmatter");
+    expect(text).toContain("name");
+    expect(text).toContain("description");
+    expect(text).toContain("keywords");
     expect(text).not.toContain("## Project Overview");
     expect(text).not.toContain("## Tech Stack");
     expect(text).not.toContain("## Repository Layout");
+    expect(text).not.toContain("Chat");
+    expect(text).not.toContain("Proposal");
+    expect(text).not.toContain("Apply");
+    expect(text).not.toContain("Archive");
     expect(text).not.toContain("OpenSpec");
+    expect(text).not.toContain("worktree");
+    expect(text).not.toContain("commit");
     expect(text).not.toContain("如需更多详细信息");
     expect(text).not.toContain("nested `AGENTS.md`");
   });

@@ -59,6 +59,12 @@ Create only the files that match the repository. Use these names by default so a
 Each `guidelines/*.md` document MUST use this structure:
 
 ```markdown
+---
+name: Topic Name
+description: A short summary of what this document covers
+keywords: [topic, area]
+---
+
 # Topic Name
 
 ## Purpose
@@ -96,6 +102,8 @@ Define what this document governs and when an agent must read it.
 - Events that require this document to be updated.
 - Owners or source files to inspect when the guideline looks stale.
 ```
+
+Frontmatter is recommended, not required. `name` gives the human-friendly title, `description` summarizes the document, and `keywords` provides a small set of search terms. `mode=read` reads these fields to surface a lightweight overview of the project's guideline files.
 
 Rules MUST be specific enough that another agent can apply them without prior conversation context. A rule such as "follow best practices" is invalid. A rule such as "renderer code MUST import shared IPC channel names from `shared/ipc/channels.ts` instead of string literals" is valid.
 
