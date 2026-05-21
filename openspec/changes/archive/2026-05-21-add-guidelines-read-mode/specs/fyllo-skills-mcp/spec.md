@@ -34,6 +34,8 @@ The `guidelines` tool SHALL accept exactly one required input field: `mode`, wit
 - **THEN** the call fails with a validation error
 - **AND** the error indicates that `targetPath` is not an allowed field
 
+## ADDED Requirements
+
 ### Requirement: guidelines tool returns mode-specific responses
 
 The `guidelines` tool SHALL return responses whose shape is determined by the `mode` input field.
@@ -104,7 +106,9 @@ Entries SHALL be sorted by `path` in ascending lexicographic order.
 - **THEN** response `content[0].text` parses as JSON
 - **AND** the JSON equals `{ "guidelines": [] }`
 
-### Requirement: guidelines instruction defines project guideline contract and frontmatter schema
+## MODIFIED Requirements
+
+### Requirement: guidelines instruction defines only project guideline contract
 
 The `guidelines.md` instruction body returned by `mode=write` SHALL define the project guidelines file contract and maintenance rules. It SHALL cover:
 

@@ -24,20 +24,6 @@ The `guidelines` tool SHALL be a no-argument tool. Its input schema SHALL NOT re
 - **THEN** the call succeeds
 - **AND** the tool does not require `targetPath`, `mode`, `changeName`, or `includeInstruction`
 
-### Requirement: guidelines tool returns atomic tool instruction only
-
-The `guidelines` tool SHALL return `content: [{ type: "text", text }]`, where `text` contains a `<tool_instruction>...</tool_instruction>` block.
-
-The response SHALL NOT include a `<state>` block. The tool SHALL NOT inspect repository files, calculate repository state, mutate files, or return discovery results. Repository inspection, file creation, and file updates SHALL be performed by the calling agent according to the returned instruction.
-
-#### Scenario: response contains only tool instruction
-
-- **WHEN** MCP client calls `guidelines`
-- **THEN** response `content[0].type === "text"`
-- **AND** response `content[0].text` contains `<tool_instruction>`
-- **AND** response `content[0].text` contains `</tool_instruction>`
-- **AND** response `content[0].text` does not contain `<state>`
-
 ### Requirement: guidelines prompt is maintained as a markdown file
 
 The `guidelines` tool instruction body SHALL be maintained in `mcp-servers/fyllo-skills/src/tools/instructions/guidelines.md`. TypeScript code SHALL NOT inline the instruction body as a long string literal. The MCP server implementation SHALL load the markdown prompt through a small loader so esbuild can inline it with the existing `.md` text loader.
@@ -55,7 +41,7 @@ The `guidelines` tool instruction body SHALL be maintained in `mcp-servers/fyllo
 
 ### Requirement: guidelines instruction defines only project guideline contract
 
-The `guidelines.md` instruction SHALL define the project guidelines file contract and maintenance rules. It SHALL cover:
+The `guidelines.md` instruction body returned by `mode=write` SHALL define the project guidelines file contract and maintenance rules. It SHALL cover:
 
 - root `AGENTS.md` as the agent-facing repository entry point
 - `guidelines/*.md` as detailed topic documents
@@ -66,28 +52,37 @@ The `guidelines.md` instruction SHALL define the project guidelines file contrac
 - authoring rules based on repository evidence
 - maintenance triggers for updating guidelines when project conventions change
 - conflict handling when local guidelines disagree with higher-priority instructions or observed repository facts
+- a YAML frontmatter description that defines the recommended (non-mandatory) frontmatter fields `name`, `description`, and `keywords` as part of the guideline document format, including an example that places the frontmatter at the top of the document template, and a note that `mode=read` parses these fields to surface guideline metadata
 
 The instruction SHALL NOT mention Fyllo stage names or workflows, including Chat, Proposal, Apply, Archive, OpenSpec, worktrees, commits, archive, `mcp__fyllo_specs__*`, or Fyllo proposal tasks. Stage-specific orchestration belongs in system-reminder templates, not in the `guidelines` tool instruction.
 
 #### Scenario: instruction includes file contract
 
-- **WHEN** MCP client calls `guidelines`
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
 - **THEN** returned instruction mentions root `AGENTS.md`
 - **AND** returned instruction mentions `guidelines/`
 - **AND** returned instruction describes that repository-owned guidelines are maintained in the user's project
 
 #### Scenario: instruction includes reusable guideline index and document templates
 
-- **WHEN** MCP client calls `guidelines`
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
 - **THEN** returned instruction contains an `AGENTS.md` guidelines index section
 - **AND** returned instruction tells agents not to generate or replace a full `AGENTS.md` document from this instruction
 - **AND** returned instruction contains a recommended guideline files section
 - **AND** returned instruction contains topic-specific content requirements
 - **AND** returned instruction mentions `guidelines/Architecture.md`, `guidelines/CodeStyle.md`, `guidelines/Testing.md`, and `guidelines/DataModel.md`
 
+#### Scenario: instruction includes frontmatter schema
+
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
+- **THEN** returned instruction describes YAML frontmatter for guideline files
+- **AND** that description names the fields `name`, `description`, and `keywords`
+- **AND** that description states the frontmatter is recommended but not strictly required
+- **AND** that description explains how `mode=read` consumes these fields
+
 #### Scenario: instruction remains workflow-agnostic
 
-- **WHEN** MCP client calls `guidelines`
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
 - **THEN** returned instruction does not contain `Chat`
 - **AND** returned instruction does not contain `Proposal`
 - **AND** returned instruction does not contain `Apply`
@@ -98,15 +93,92 @@ The instruction SHALL NOT mention Fyllo stage names or workflows, including Chat
 
 ### Requirement: fyllo-skills has independent server metadata and tests
 
-`fyllo-skills` SHALL define its own server name and version module. Tests SHALL cover tool registration and response shape without depending on `fyllo-specs` internals.
+`fyllo-skills` SHALL define its own server name and version module. Tests SHALL cover tool registration and response shape for both `mode=read` and `mode=write` without depending on `fyllo-specs` internals.
 
 #### Scenario: server metadata uses fyllo-skills name
 
 - **WHEN** `fyllo-skills` starts its `McpServer`
 - **THEN** the server name is `fyllo-skills`
 
-#### Scenario: tests verify guidelines response
+#### Scenario: tests verify guidelines write response
 
 - **WHEN** running MCP server tests
-- **THEN** there is coverage that calls `guidelines`
+- **THEN** there is coverage that calls `guidelines` with `{ "mode": "write" }`
 - **AND** the test verifies the response contains `<tool_instruction>` and not `<state>`
+
+#### Scenario: tests verify guidelines read response
+
+- **WHEN** running MCP server tests
+- **THEN** there is coverage that calls `guidelines` with `{ "mode": "read" }` against a fixture project
+- **AND** the test verifies the response is JSON with a `guidelines` array
+- **AND** the test verifies entries from frontmatter, missing frontmatter, and malformed frontmatter cases all behave per the specification
+
+### Requirement: guidelines tool returns mode-specific responses
+
+The `guidelines` tool SHALL return responses whose shape is determined by the `mode` input field.
+
+When `mode` is `"write"`, the tool SHALL return `content: [{ type: "text", text }]`, where `text` contains a `<tool_instruction>...</tool_instruction>` block holding the guideline authoring contract. The response SHALL NOT include a `<state>` block. The tool SHALL NOT mutate any repository file.
+
+When `mode` is `"read"`, the tool SHALL return `content: [{ type: "text", text }]`, where `text` is a JSON document with a single root field named `guidelines` whose value is an array of guideline entries. The tool SHALL recursively scan `guidelines/**/*.md` under the MCP server's current working directory and produce one entry per matched file. The tool SHALL NOT mutate any repository file. If the `guidelines/` directory does not exist, the tool SHALL return `{ "guidelines": [] }` without error.
+
+Each guideline entry SHALL include the following fields:
+
+- `path`: project-root-relative POSIX path to the file (for example `guidelines/Architecture.md`).
+- `name`: the value of `name` from the file's YAML frontmatter when it is a non-empty string; otherwise the file name stem (the file name with the trailing `.md` removed).
+- `description`: the value of `description` from the file's YAML frontmatter when it is a non-empty string; otherwise `null`.
+- `keywords`: the value of `keywords` from the file's YAML frontmatter when it is an array of strings; otherwise `null`.
+
+When the file has no leading `---` frontmatter delimiter, the entry SHALL still be returned with `description` and `keywords` set to `null` and `name` set to the file name stem. When the file has a frontmatter block but YAML parsing fails or the parsed value is not a plain object, the entry SHALL include an additional optional field `parseError` whose value is a short error message string, and `description` and `keywords` SHALL be `null`.
+
+Entries SHALL be sorted by `path` in ascending lexicographic order.
+
+#### Scenario: write mode returns instruction block
+
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
+- **THEN** response `content[0].type === "text"`
+- **AND** response `content[0].text` contains `<tool_instruction>`
+- **AND** response `content[0].text` contains `</tool_instruction>`
+- **AND** response `content[0].text` does not contain `<state>`
+
+#### Scenario: read mode returns guidelines array
+
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` in a project containing `guidelines/A.md` and `guidelines/B.md`
+- **THEN** response `content[0].text` parses as JSON
+- **AND** the JSON has a root field `guidelines` whose value is an array
+- **AND** the array contains entries whose `path` values include `guidelines/A.md` and `guidelines/B.md`
+- **AND** the entries are sorted by `path` ascending
+
+#### Scenario: read mode parses frontmatter fields
+
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` and a guideline file declares `name: "Architecture"`, `description: "system layout"`, and `keywords: ["electron", "ipc"]` in its YAML frontmatter
+- **THEN** the corresponding entry has `name === "Architecture"`
+- **AND** the entry has `description === "system layout"`
+- **AND** the entry has `keywords` deep-equal to `["electron", "ipc"]`
+
+#### Scenario: read mode tolerates missing frontmatter
+
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` and a file `guidelines/Legacy.md` does not start with `---`
+- **THEN** the corresponding entry has `path === "guidelines/Legacy.md"`
+- **AND** the entry has `name === "Legacy"`
+- **AND** the entry has `description === null`
+- **AND** the entry has `keywords === null`
+- **AND** the entry does not include `parseError`
+
+#### Scenario: read mode reports frontmatter parse failure
+
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` and a file's frontmatter contains malformed YAML
+- **THEN** the corresponding entry has `name === <file name stem>`
+- **AND** the entry has `description === null`
+- **AND** the entry has `keywords === null`
+- **AND** the entry has `parseError` set to a non-empty string
+
+#### Scenario: read mode supports nested directories
+
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` and the project contains `guidelines/frontend/Routing.md`
+- **THEN** the response contains an entry with `path === "guidelines/frontend/Routing.md"`
+
+#### Scenario: read mode returns empty array when guidelines directory missing
+
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` in a project that has no `guidelines/` directory
+- **THEN** response `content[0].text` parses as JSON
+- **AND** the JSON equals `{ "guidelines": [] }`
