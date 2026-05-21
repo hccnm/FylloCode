@@ -35,7 +35,7 @@ export async function exploreTool(input: z.infer<typeof exploreInputSchema>): Pr
       throw error;
     }
 
-    const projectRoot = result.resolved;
+    const projectRoot = result.resolved!;
     const activeChanges = await listChanges(projectRoot);
     const currentChange = input.changeName
       ? await computeStatus(projectRoot, input.changeName)
