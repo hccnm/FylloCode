@@ -1,189 +1,71 @@
-# IPC 通信
+---
+name: IPC
+description: FylloCode 的主渲染通信契约、channel 规则、bridge 暴露与错误模型
+keywords: [ipc, electron, preload, channels, contracts]
+---
 
-## 通信模型
+# IPC
 
-```
-渲染进程 (Vue)
-  └─ window.api.<domain>.<method>()        # 请求-响应
-  └─ window.api.<domain>.on<Event>()       # 事件订阅（由 preload 封装）
+## Purpose
 
-预加载脚本 (contextBridge)
-  └─ 安全暴露 window.api
+定义主进程、预加载脚本和渲染进程之间的通信模型、channel 命名、payload 校验、响应格式和流式协议。任何涉及新增或修改 `window.api`、IPC channel、shared schema、错误码或 MessagePort 流程的工作，都必须先阅读本文档。
 
-主进程 (Electron)
-  └─ ipcMain.handle()   # 处理请求-响应
-  └─ ipcMain.on()       # 处理单向消息
-  └─ event.sender.send() / BrowserWindow.webContents.send()  # 推送事件
-```
+## Applicability
 
-所有 channel 名称定义在 `shared/types/channels.ts`，格式为 `domain:action`。
+- 适用于 `electron/main/ipc/**`、`electron/preload/**`、`shared/types/channels.ts`、`shared/schemas/ipc/**`、`shared/types/ipc.ts`、`shared/constants/error-codes.ts`。
+- 适用于 `frontend/src/api/**` 中对 `window.api.*` 的消费。
+- 不覆盖主进程内部 service/domain/infra 分层；见 `guidelines/MainProcess.md`。
 
-## Channel 清单
+## Sources of Truth
 
-### Chat（`window.api.chat`）
+- `shared/types/channels.ts`
+- `shared/schemas/ipc/**`
+- `shared/types/ipc.ts`
+- `shared/constants/error-codes.ts`
+- `shared/errors/ipc-error.ts`
+- `electron/main/ipc/**`
+- `electron/preload/api/**`
+- `electron/preload/index.d.ts`
+- `frontend/src/api/**`
+- `openspec/specs/ipc-protocol/spec.md`
+- `openspec/specs/ipc-request-response/spec.md`
+- `openspec/specs/ipc-streaming/spec.md`
+- `openspec/specs/proposal-ipc/spec.md`
+- `openspec/specs/workflow-ipc/spec.md`
 
-| Channel               | 常量                               | 类型   |
-| --------------------- | ---------------------------------- | ------ |
-| `chat:listSessions`   | `ChatChannels.listSessions`        | handle |
-| `chat:createSession`  | `ChatChannels.createSession`       | handle |
-| `chat:updateSession`  | `ChatChannels.updateSession`       | handle |
-| `chat:removeSession`  | `ChatChannels.removeSession`       | handle |
-| `chat:loadMessages`   | `ChatChannels.loadMessages`        | handle |
-| `chat:persistMessage` | `ChatChannels.persistMessage`      | handle |
-| `chat:stream:message` | `ChatStreamChannels.streamMessage` | handle |
-| `chat:stream:port`    | `ChatStreamChannels.streamPort`    | handle |
-| `chat:stream:cancel`  | `ChatStreamChannels.streamCancel`  | on     |
+## Rules
 
-流式消息通过 `MessagePort` 传输，消息格式见 `shared/types/ipc.ts` 的 `StreamMessage<T>`。
-`chat:persistMessage` 仅用于持久化 `role === "user"` 的消息；assistant 消息由主进程在
-`chat:stream:message` 完成时写盘。
+- MUST: 将所有 channel 名称定义在 `shared/types/channels.ts`，禁止在主进程、preload 或 renderer 中散落字符串字面量。
+- MUST: 使用 `domain:action` 作为 channel 命名格式，其中 domain 表示功能领域，而不是页面入口或 UI 路由。
+- MUST: 让每个 handle 型 channel 返回 `IpcResponse<T>`，错误分支返回 `IpcErrorInfo`，而不是抛出 renderer 侧难以消费的任意结构。
+- MUST: 让主进程 handler 的入参通过 `shared/schemas/ipc/<domain>.ts` 中的 Zod schema 校验；渲染侧类型声明不能替代运行时校验。
+- MUST: 让 preload 通过 `contextBridge` 暴露 `window.api`，渲染层只能消费这些公开 API，不得直接触碰 `ipcRenderer`。
+- MUST: 让流式协议通过 `ipc/_kit/stream-channel.ts` 与 `MessagePort` 实现，chunk/done/error 消息结构遵循 `shared/types/ipc.ts`。
+- MUST: 将新增错误码登记到 `shared/constants/error-codes.ts`；不得返回未声明的错误码字符串。
+- MUST: 在 `frontend/src/api/` 中为每个公开 bridge 方法提供对等薄封装，保持 renderer 对 IPC 的访问点可搜索、可替换、可测试。
+- SHOULD: 让 `electron/preload/index.d.ts` 与 `electron/preload/api/**` 同步更新，避免桥接实现与类型声明脱节。
+- SHOULD: 按业务域组织 schema 和 channel，例如 `chat`、`proposal`、`workflow`、`integration`，避免把所有通信契约塞进单个大文件。
+- MAY: 为事件型 channel 在 preload 中提供 `onXxx` / `offXxx` 风格封装，但不要把订阅系统散落到业务组件层直接实现。
 
-### Proposal（`window.api.proposal`）
+## Examples
 
-| Channel                        | 常量                                   | 类型   |
-| ------------------------------ | -------------------------------------- | ------ |
-| `proposal:list`                | `ProposalChannels.list`                | handle |
-| `proposal:readFile`            | `ProposalChannels.readFile`            | handle |
-| `proposal:apply`               | `ProposalChannels.apply`               | handle |
-| `proposal:stageStream`         | `ProposalChannels.stageStream`         | handle |
-| `proposal:stageStream:port`    | `ProposalChannels.stageStreamPort`     | handle |
-| `proposal:stageStream:cancel`  | `ProposalChannels.stageStreamCancel`   | handle |
-| `proposal:archive`             | `ProposalChannels.archive`             | handle |
-| `proposal:archive:port`        | `ProposalChannels.archivePort`         | handle |
-| `proposal:archive:cancel`      | `ProposalChannels.archiveCancel`       | handle |
-| `proposal:loadRun`             | `ProposalChannels.loadRun`             | handle |
-| `proposal:loadRunMessages`     | `ProposalChannels.loadRunMessages`     | handle |
-| `proposal:loadArchive`         | `ProposalChannels.loadArchive`         | handle |
-| `proposal:loadArchiveMessages` | `ProposalChannels.loadArchiveMessages` | handle |
+- Good: 在 `shared/schemas/ipc/proposal.ts` 增加入参 schema，在 `electron/main/ipc/proposal.ts` 里 `validate -> service -> return`，在 `electron/preload/api/proposal.ts` 暴露 bridge，再由 `frontend/src/api/proposal.ts` 封装调用。
+- Good: 使用 `IpcErrorCodes.PROJECT_NOT_FOUND` 这类集中登记的错误码，而不是字符串 `"PROJECT_NOT_FOUND"` 字面量。
+- Good: `chat:stream:*`、`proposal:*:port` 一类流式通道通过 `MessagePort` 传递分块事件。
+- Bad: 在 renderer 组件中直接 `ipcRenderer.invoke("proposal:list", input)`。
+- Bad: 在 handler 内手写 `{ ok: false, error: { code: "UNKNOWN", ... } }` 并绕过共享错误码类型。
 
-### Project（`window.api.project`）
+## Verification
 
-| Channel              | 常量                         | 类型   |
-| -------------------- | ---------------------------- | ------ |
-| `project:list`       | `ProjectChannels.list`       | handle |
-| `project:getById`    | `ProjectChannels.getById`    | handle |
-| `project:update`     | `ProjectChannels.update`     | handle |
-| `project:remove`     | `ProjectChannels.remove`     | handle |
-| `project:openFolder` | `ProjectChannels.openFolder` | handle |
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm vitest run electron/main/__tests__/ipc/**/*.spec.ts`
+- `pnpm vitest run electron/main/__tests__/preload/**/*.spec.ts`
+- `pnpm vitest run shared/__tests__/**/*.{test,spec}.ts`
+- 若改动包含新 channel，检查 `shared/types/channels.ts`、`shared/schemas/ipc/**`、`electron/preload/index.d.ts`、`frontend/src/api/**` 是否一并更新。
 
-### Workflow（`window.api.workflow`）
+## Maintenance
 
-| Channel           | 常量                      | 类型   |
-| ----------------- | ------------------------- | ------ |
-| `workflow:list`   | `WorkflowChannels.list`   | handle |
-| `workflow:save`   | `WorkflowChannels.save`   | handle |
-| `workflow:delete` | `WorkflowChannels.delete` | handle |
-
-### Task（`window.api.task`）
-
-| Channel       | 常量                  | 类型   |
-| ------------- | --------------------- | ------ |
-| `task:get`    | `TaskChannels.get`    | handle |
-| `task:list`   | `TaskChannels.list`   | handle |
-| `task:create` | `TaskChannels.create` | handle |
-| `task:update` | `TaskChannels.update` | handle |
-| `task:delete` | `TaskChannels.delete` | handle |
-
-### Integration（`window.api.integration`）
-
-| Channel                                | 常量                                         | 类型   |
-| -------------------------------------- | -------------------------------------------- | ------ |
-| `integration:getConnections`           | `IntegrationChannels.getConnections`         | handle |
-| `integration:connect`                  | `IntegrationChannels.connect`                | handle |
-| `integration:disconnect`               | `IntegrationChannels.disconnect`             | handle |
-| `integrations:providers:list`          | `IntegrationChannels.providersList`          | handle |
-| `integrations:providers:connect`       | `IntegrationChannels.providersConnect`       | handle |
-| `integrations:providers:disconnect`    | `IntegrationChannels.providersDisconnect`    | handle |
-| `integrations:providers:probe`         | `IntegrationChannels.providersProbe`         | handle |
-| `integrations:providers:listResources` | `IntegrationChannels.providersListResources` | handle |
-| `integrations:project:get`             | `IntegrationChannels.projectGet`             | handle |
-| `integrations:project:set`             | `IntegrationChannels.projectSet`             | handle |
-
-新增的 `integrations:*` 通道用于 provider/project 语义：
-
-- `providers:*`：全局 provider 凭证、连接状态、探测与资源列表
-- `project:*`：当前项目的阶段资源挂载配置
-
-当前真实支持的 provider 仅覆盖 `yunxiao`。`integration:*` 仅保留当前仍被 renderer 消费的连接入口；provider/project 语义统一通过 `integrations:*` 通道提供。
-
-### Settings（`window.api.settings`）
-
-| Channel               | 常量                          | 类型   |
-| --------------------- | ----------------------------- | ------ |
-| `settings:get`        | `SettingsChannels.get`        | handle |
-| `settings:getAppInfo` | `SettingsChannels.getAppInfo` | handle |
-| `settings:update`     | `SettingsChannels.update`     | handle |
-
-### ACP Agents（`window.api.acpAgents`）
-
-| Channel                      | 常量                                | 类型   |
-| ---------------------------- | ----------------------------------- | ------ |
-| `acp:getRegistry`            | `AcpAgentChannels.getRegistry`      | handle |
-| `acp:refreshRegistry`        | `AcpAgentChannels.refreshRegistry`  | handle |
-| `acp:getIcons`               | `AcpAgentChannels.getIcons`         | handle |
-| `acp:detectStatus`           | `AcpAgentChannels.detectStatus`     | handle |
-| `acp:install`                | `AcpAgentChannels.install`          | handle |
-| `acp:registryUpdated`        | `AcpAgentChannels.registryUpdated`  | event  |
-| `acp:installProgress`        | `AcpAgentChannels.installProgress`  | event  |
-| `acp:event:agentUnavailable` | `AcpAgentChannels.agentUnavailable` | event  |
-
-当前 preload 公开的订阅入口为 `window.api.acpAgents.onRegistryUpdated()` 和
-`window.api.acpAgents.onInstallProgress()`；事件订阅在 preload 内部使用
-`ipcRenderer.on/off` 封装，renderer 业务代码不得直接触碰底层 bridge。
-`acp:event:agentUnavailable` 当前仅作为主进程内部推送 channel 保留，尚未通过公开
-preload API 暴露给 renderer。
-
-## 响应格式
-
-所有 handle 类型的 channel 返回 `IpcResponse<T>`（定义在 `shared/types/ipc.ts`）：
-
-```ts
-type IpcResponse<T> = { ok: true; data: T } | { ok: false; error: IpcErrorInfo };
-```
-
-`error.code` 的类型是 `IpcErrorCode` 联合，来自 `shared/constants/error-codes.ts`。未在该文件登记的错误码字面量不能通过类型检查。
-
-渲染进程调用示例：
-
-```ts
-const res = await window.api.chat.listSessions({ projectId: "xxx" });
-if (res.ok) {
-  // res.data: Session[]
-} else {
-  // res.error: { code: IpcErrorCode; message: string }
-}
-```
-
-## Handler 实现约束
-
-所有主进程 handler 通过 `electron/main/ipc/_kit/` 下的四件套实现，详见 **[MainProcess](./MainProcess.md)**：
-
-- `wrapHandler` — 请求-响应 handler 必须用它包装，异常自动归一化成 `{ ok: false, error }`。
-- `makeStreamChannel` — 流式 handler 必须用它创建 MessagePort，禁止手写 `portClosed` 守卫、`sendChunk/sendDone/sendError` 模板。
-- `validate` — handler 入参必须通过 zod schema 校验；schema 位于 `shared/schemas/ipc/<domain>.ts`，校验失败统一返回 `VALIDATION_ERROR`。
-- `ipcError` — 构造带 `IpcErrorCode` 的 Error，替代所有 `createXxxError`/`Object.assign(new Error(), { code })` 样板。
-
-handler 函数体应严格遵循 **validate → call service → return** 三步，业务逻辑必须下沉到 `electron/main/services/`。
-
-## 错误码清单
-
-所有合法错误码定义在 `shared/constants/error-codes.ts`。新增错误码**必须**通过 OpenSpec change 提交：
-
-- 通用：`UNKNOWN_ERROR`、`VALIDATION_ERROR`、`STREAM_INIT_FAILED`
-- Project：`PROJECT_NOT_FOUND`、`PROJECT_REQUIRED`
-- Chat：`CHAT_SESSION_NOT_FOUND`
-- Proposal：`PROPOSAL_NOT_FOUND`、`APPLY_RUN_NOT_FOUND`、`APPLY_RUN_NOT_READY`、`APPLY_SESSION_NOT_READY`、`APPLY_RUN_PERSIST_FAILED`、`STAGE_NOT_FOUND`、`STAGE_TYPE_NOT_IMPLEMENTED`
-- Workflow：`WORKFLOW_NOT_FOUND`、`INVALID_WORKFLOW_NAME`、`BUILT_IN_WORKFLOW`
-- ACP：`AGENT_NOT_FOUND`、`ACP_ERROR`、`ACP_NOT_READY`、`ACP_EXIT_GIVEUP`、`SPAWN_ERROR`
-- Integration：`YUNXIAO_API_ERROR`
-
-## 新增 Channel 流程
-
-1. 在 `shared/types/channels.ts` 添加常量
-2. 在 `shared/schemas/ipc/<domain>.ts` 添加 zod 入参 schema
-3. 若需要新错误码，在 `shared/constants/error-codes.ts` 中登记（需 OpenSpec change）
-4. 在 `electron/main/services/<domain>/<domain>-service.ts` 实现业务逻辑
-5. 在 `electron/main/ipc/<domain>.ts` 中用 `wrapHandler` + `validate` 注册 handler，仅做 service 调用
-6. 在 `electron/preload/api/<domain>.ts` 中暴露方法，同步更新 `preload/index.d.ts`
-7. 在 `frontend/src/api/` 对应文件中添加调用封装
-8. 为 service / domain 纯函数补单测
+- 当 channel 命名策略、bridge 暴露方式、共享响应结构、错误码来源或流式协议变化时，必须更新本文档。
+- 当新增功能域引入一组新的 IPC 接口时，应补充 Rules/Examples 中的代表性路径，而不是把本文档扩写成完整 API 手册。
+- 若 OpenSpec 中的 `ipc-*` capability 修改了行为契约，应先更新 spec，再同步本文档。

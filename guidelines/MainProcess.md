@@ -1,283 +1,69 @@
-# 主进程分层规范（MainProcess）
-
-`electron/main/` 按五层架构组织，层间依赖方向单向，任何跨层改动都必须遵守本文档。
-ESLint `no-restricted-imports` 会在构建期阻断违规导入。
-
-## 层次与职责
-
-```
-electron/main/
-├── bootstrap/    # 应用生命周期：窗口创建、before-quit、disposable 注册中心
-├── ipc/          # IPC handler（零业务逻辑）+ _kit 共享基础设施
-│   └── _kit/     # wrap-handler / stream-channel / errors / schema
-├── services/     # 应用服务：跨领域编排、持久化协调、事件广播
-├── domain/       # 领域纯逻辑与契约（无 electron / infra 依赖，可脱机单测）
-└── infra/        # 基础设施适配器（storage / process / paths / logger / ids）
-```
-
-| 层        | 允许依赖                               | 禁止依赖                                              | 示例                                                           |
-| --------- | -------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------- |
-| bootstrap | ipc / services / infra / @shared       | —                                                     | `lifecycle.ts`、`window.ts`、`index.ts`                        |
-| ipc       | services / shared / `ipc/_kit`         | fs / child_process / infra / domain（type-only 例外） | `chat.ts`、`proposal-apply.ts`                                 |
-| services  | domain / infra / shared                | ipc（`_kit` 除外）、bootstrap                         | `chat-service.ts`、`apply-run-service.ts`                      |
-| domain    | shared / 第三方 npm                    | electron / @electron-toolkit / services / infra / ipc | `message-assembler.ts`、`yaml-parser.ts`、`openspec-reader.ts` |
-| infra     | shared / 第三方 npm / domain（纯函数） | services / ipc                                        | `project-store.ts`、`acp-process-pool.ts`                      |
-
-**例外**：
-
-- `infra/logger` 是横切能力，`ipc/` 可直接 import。
-- `domain/acp/detector.ts`、`domain/integration/yunxiao/**` 历史原因混合了 IO，暂时在 ESLint 白名单中，后续单独拆分。
-
-## IPC 基础设施 `ipc/_kit/`
-
-所有 IPC handler **必须** 通过 kit 四件套实现：
-
-### `wrap-handler.ts`
-
-请求-响应 handler 的唯一正确写法：
-
-```ts
-import { wrapHandler } from "./_kit/wrap-handler";
-import { validate } from "./_kit/schema";
-import { listProposalsInputSchema } from "@shared/schemas/ipc/proposal";
-import { listProposals } from "@main/services/proposal/proposal-service";
-
-ipcMain.handle(ProposalChannels.list, (_event, input: unknown) =>
-  wrapHandler(async () => {
-    const { projectId } = validate(listProposalsInputSchema, input);
-    return listProposals(projectId);
-  })
-);
-```
-
-handler 函数体只做三件事：**validate → call service → return**。
-
-- 禁止在 handler 内 `new AcpSession`、`fs.*`、`spawn`、`path.join + encodeProjectPath`。
-- 禁止手写 `try { ... } catch { return { ok: false, error } }`：`wrapHandler` 已经做完。
-
-### `stream-channel.ts`
-
-流式 handler 的唯一正确写法：
-
-```ts
-ipcMain.handle(ChatStreamChannels.streamMessage, (event, input: unknown) => {
-  const form = validate(streamMessageInputSchema, input);
-
-  return makeStreamChannel({
-    event,
-    portChannel: ChatStreamChannels.streamPort,
-    logTag: "chat",
-    onReady: async (sink) => {
-      const session = new AcpSession({ ... });
-      sessionRegistry.register("chat", sessionId, session);
-
-      session.on("event", (ev) => {
-        if (ev.type === "text_delta") sink.sendChunk({ kind: "text_delta", text: ev.text });
-        if (ev.type === "done")       sink.sendDone(ev.totalTokens);
-        if (ev.type === "error")      sink.sendError(IpcErrorCodes.ACP_ERROR, ev.message);
-      });
-
-      return {
-        start: () => session.start(prompt),
-        cancel: () => session.cancel(),
-      };
-    },
-  });
-});
-```
-
-Kit 负责：
-
-- `MessageChannelMain` 创建 + `port2` 传给 renderer
-- 等待 renderer `{ type: "ready" }` 握手
-- `sink.sendChunk/sendDone/sendError` 的关闭守卫（第二次调用是 no-op）
-- port 关闭时自动调 `cancel()`
-- `onReady` / `start()` 抛错归一化成 `sendError(code, message)`
-
-**不得** 在 handler 内手写 `new MessageChannelMain`、`portClosed` flag、port message listener。
-
-### `errors.ts`
-
-构造带错误码的 Error：
-
-```ts
-import { ipcError } from "./_kit/errors";
-import { IpcErrorCodes } from "@shared/constants/error-codes";
-
-throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${id}`);
-```
-
-`IpcErrorCodes` 是 `shared/constants/error-codes.ts` 导出的联合类型。
-**新增错误码** 必须通过 OpenSpec change 提交，编辑 `error-codes.ts` 的同一处。
-handler 返回的 `error.code` 类型被收紧为 `IpcErrorCode`，无法返回字面量字符串。
-
-非 IPC 层（如 infra、services）需要抛错时，直接从 `@shared/errors/ipc-error` 引入 `ipcError`。
-
-### `schema.ts`
-
-每个 handler 的入参都要走 zod 校验：
-
-```ts
-const form = validate(streamMessageInputSchema, input);
-```
-
-schema 文件位于 `shared/schemas/ipc/<domain>.ts`，按业务域组织。校验失败 `wrapHandler` 会返回 `VALIDATION_ERROR`，handler 不用额外写 try/catch。
-
-## 会话与进程治理
-
-### SessionRegistry
-
-`services/chat/session-registry.ts` 是所有活跃 `AcpSession` 的唯一入口。三个 owner 命名空间：
-
-| Owner     | key 示例                   | 使用者                  |
-| --------- | -------------------------- | ----------------------- |
-| `chat`    | `sessionId`                | `ipc/chat.ts`           |
-| `apply`   | `runId`                    | `ipc/proposal-apply.ts` |
-| `archive` | `${projectId}:${changeId}` | `ipc/proposal-apply.ts` |
-
-```ts
-sessionRegistry.register("chat", sessionId, session);
-sessionRegistry.cancel("chat", sessionId); // 取消并移除
-sessionRegistry.cancelByOwner("apply"); // 批量取消某 owner
-sessionRegistry.unregister("chat", sessionId); // 仅移除（不 cancel，用于 done/error 后的清理）
-```
-
-SessionRegistry 自己注册为 disposable，`app.on("before-quit")` 时会 `cancelAll()`。
-
-**禁止** 在其他模块创建 `new Map<string, AcpSession>`。
-
-### ACP 进程池
-
-`infra/process/acp-process-pool.ts`：
-
-- `stderr` 按行转发到 `logger.warn`（不再 inherit，prod 下也能看到诊断输出）。
-- 退出后按 backoff 序列重启：`[0, 500, 2000, 5000]` ms。
-- 超过序列长度仍继续退出的 agent 进入 `giveUp` 状态：
-  - 广播 `AcpAgentChannels.agentUnavailable` 事件给 renderer
-  - 下次 `getOrStartProcess(agentId)` 抛出 `ACP_EXIT_GIVEUP`
-- 成功使用（handler 成功拿到 process）后 `failures` 归零。
-- 注册为 disposable：退出时 kill 所有 child 并等其 `close`，超时 2s。
-
-### Disposable 生命周期
-
-任何长期存活的资源（子进程、定时器、文件监听、registry refresh promise）**必须** 通过 `registerDisposable` 登记：
-
-```ts
-import { registerDisposable } from "@main/bootstrap/lifecycle";
-
-registerDisposable({
-  name: "my-resource",
-  dispose: async () => {
-    // 释放资源
-  },
-});
-```
-
-`app.on("before-quit")` 会 `preventDefault()`、调 `disposeAll()`（逆序 + 5s 超时），然后 `app.exit(0)`。
-
-## 路径 / ID / 默认值单点化
-
-| 需求                     | 使用                                    | 位置                                  |
-| ------------------------ | --------------------------------------- | ------------------------------------- |
-| 项目根目录               | `projectDir(projectPath)`               | `@main/infra/storage/project-paths`   |
-| 会话目录                 | `sessionsDir(projectPath)`              | 同上                                  |
-| Apply run 目录           | `applyRunsDir(projectPath)`             | 同上                                  |
-| 工作流目录               | `workflowsDir(projectPath)`             | 同上                                  |
-| 应用随附资源根目录       | `getResourcesPath()`                    | `@main/infra/paths`                   |
-| 内置 MCP server 描述符   | `getBundledMcpServers({ projectPath })` | `@main/infra/mcp/bundled-mcp-servers` |
-| 新建 session id          | `newSessionId()`                        | `@main/infra/ids`                     |
-| 新建 apply run id        | `newRunId()`                            | 同上                                  |
-| Stage 级 Fyllo 会话 id   | `newStageFylloSessionId(runId, index)`  | 同上                                  |
-| Archive 级 Fyllo 会话 id | `newArchiveFylloSessionId(runId)`       | 同上                                  |
-
-**禁止** 在 service / ipc 层直接 `join + encodeProjectPath`、`` `session-${Date.now()}` ``、硬编码具体 ACP agent id 字面量（例如 `"claude-acp"`）。`agentId` 由调用方在请求边界显式提供，主进程不维护系统级默认 agentId。
-
-随应用分发的根目录 `resources/` 必须通过 `@main/infra/paths` 的 `getResourcesPath()` 获取。业务模块只在资源根目录下拼接自己的子路径（例如 workflow 使用 `workflows/built-in`），不得直接依赖 `process.resourcesPath`、`app.getAppPath()`、`app.asar.unpacked` 等打包布局细节。
-
-## 新增一个内置 MCP server 的完整流程
-
-1. 在 `mcp-servers/<name>/` 下添加源码、prompt、runtime 与测试。
-2. 通过主进程 infra 模块统一生成 ACP `mcpServers` 描述符，不在 service 层手写路径或 env。
-3. 开发环境指向 `out/mcp-servers/<name>/index.js`，生产环境指向 `resources/mcp-servers/<name>/index.js`。
-4. `services/chat/acp-session.ts` 在 `newSession` 与 `resumeSession` 两个入口都注入相同的 `mcpServers`。
-
-## 日志
-
-```ts
-import logger from "@main/infra/logger";
-
-logger.info("...");
-logger.warn("...");
-logger.error("...");
-```
-
-- 渲染进程使用 `import log from "electron-log/renderer"`，preload 已经装好了转发通道。
-- 未来 tag 工厂 `createLogger("domain.sub")` 将替代手写 `[xxx]` 前缀（tracked in tasks.md §4.13，跨领域逐步迁移）。
-
-## 新增一个 IPC 方法的完整流程
-
-假设要新增 `window.api.foo.bar({ id: string })` 返回一个对象。
-
-1. **channel 常量**：`shared/types/channels.ts` 的对应 `FooChannels` 加 `bar: "foo:bar"`。
-2. **zod schema**：`shared/schemas/ipc/foo.ts` 加 `barInputSchema = z.object({ id: z.string().min(1) })`。
-3. **（可选）新错误码**：`shared/constants/error-codes.ts` 新增 `IpcErrorCodes.FOO_NOT_FOUND`（需 OpenSpec change）。
-4. **service 方法**：`electron/main/services/foo/foo-service.ts` 写业务逻辑，抛 `ipcError(...)`，调用 infra/domain。
-5. **handler**：`electron/main/ipc/foo.ts` 加：
-   ```ts
-   ipcMain.handle(FooChannels.bar, (_event, input: unknown) =>
-     wrapHandler(async () => {
-       const { id } = validate(barInputSchema, input);
-       return bar(id);
-     })
-   );
-   ```
-6. **preload API**：`electron/preload/api/foo.ts` 暴露 `bar`；更新 `preload/index.d.ts`。
-7. **单测**：service、domain、infra 以及 `ipc/_kit` 的纯函数补单元测试，测试文件统一放在 `electron/main/__tests__/`，按源码目录镜像组织。
-8. **spec**：若改变用户可见行为，先走 OpenSpec change。
-
-## 新增一个持久化资源
-
-1. `shared/types/` 定义持久化的 meta 结构（如果跨进程共享）。
-2. `infra/storage/project-paths.ts` 添加目录函数 `xxxDir(projectPath)`。
-3. `infra/storage/xxx-store.ts` 实现 CRUD（只负责序列化 + 文件 IO）。
-4. `services/<domain>/xxx-service.ts` 实现业务规则（校验、默认值、跨资源协调）。
-5. handler 只做 validate + 调 service。
-
-## Integration 主进程落点
-
-本次 integration provider / project 拆分后，主进程按下面的职责组织：
-
-- `electron/main/infra/storage/provider-credential-store.ts`
-  - 以 `providerId` 为 key 持久化 `{userData}/integrations/credentials/{providerId}.json`
-- `electron/main/infra/storage/provider-connection-store.ts`
-  - 维护 `{userData}/integrations/connections.json`
-  - 保存 provider 级连接状态、账户标识、脱敏凭证回显
-- `electron/main/services/integration/provider-resource-service.ts`
-  - 按 `(providerId, resourceType)` 路由资源拉取实现
-  - 负责 5 分钟会话级缓存与鉴权失败回写过期状态
-- `electron/main/infra/storage/project-integration-store.ts`
-  - 以 `projectId` 持久化 `ProjectIntegrationConfig`
-  - 管理 `stage -> [{ providerId, resourceType, resourceId }]`
-- `electron/main/services/integration/provider-service.ts`
-  - 编排 manifest、provider 连接/断开/探测、资源列表、项目级挂载写入校验
-- `electron/main/ipc/integration.ts`
-  - 暴露 `integrations:providers:*` 与 `integrations:project:*`
-  - handler 仅做 `validate -> service`
-
-当前真实 provider 实现仅覆盖 `yunxiao`，其资源适配分散在：
-
-- `domain/integration/yunxiao/projex/`
-- `domain/integration/yunxiao/codeup/`
-- `domain/integration/yunxiao/flow/`
-
-其它 provider 只允许出现在 manifest 与前端占位态中；若没有主进程适配，不得在 handler 或 service 中伪造“可连接”能力。
-
-## 违规排查
-
-| 报错                                                      | 原因 / 修复                                                           |
-| --------------------------------------------------------- | --------------------------------------------------------------------- |
-| `domain/ must not depend on infra/`                       | domain 出现了 fs/path/electron 调用，把 IO 搬到 infra 或 service      |
-| `ipc/ handlers must go through services/`                 | handler 直接 import 了 infra/domain，把逻辑下沉到 service             |
-| `ipc/ must not touch fs directly`                         | 同上                                                                  |
-| `infra/ must not depend on services/`                     | infra 不应依赖 services；如果是读 registry 等数据，搬到 infra/storage |
-| `'TOTALLY_FAKE' is not assignable to type 'IpcErrorCode'` | 使用了未声明的错误码，在 `shared/constants/error-codes.ts` 登记       |
+---
+name: MainProcess
+description: Electron 主进程的分层结构、依赖方向、生命周期和基础设施约束
+keywords: [electron, main-process, ipc, services, infra]
+---
+
+# MainProcess
+
+## Purpose
+
+定义 `electron/main/` 的五层结构、依赖方向、资源生命周期和主进程内的实现约束。任何涉及主进程 handler、service、domain、infra、进程治理或持久化路径的工作，都必须先阅读本文档。
+
+## Applicability
+
+- 适用于 `electron/main/**`。
+- 适用于主进程中的 `bootstrap/`、`ipc/`、`services/`、`domain/`、`infra/`、`types/`。
+- 适用于通过 `@main/*` 引用主进程实现的测试代码。
+- 不覆盖 preload bridge 暴露规则和 channel 语义细表；见 `guidelines/IPC.md`。
+
+## Sources of Truth
+
+- `electron/main/**`
+- `eslint.config.mjs`
+- `electron/main/ipc/_kit/**`
+- `electron/main/infra/paths/index.ts`
+- `electron/main/infra/storage/project-paths.ts`
+- `electron/main/infra/process/acp-process-pool.ts`
+- `electron/main/services/chat/session-registry.ts`
+- `openspec/specs/main-process-layering/spec.md`
+- `openspec/specs/ipc-request-response/spec.md`
+- `openspec/specs/ipc-streaming/spec.md`
+- `openspec/specs/logging/spec.md`
+- `openspec/specs/bundled-mcp-servers/spec.md`
+
+## Rules
+
+- MUST: 将 `electron/main/` 维持为 `bootstrap -> ipc -> services -> domain/infra` 的单向依赖结构，具体受 `eslint.config.mjs` 中的 `no-restricted-imports` 约束。
+- MUST: 让 `ipc/` handler 只做三件事：`validate` 入参、调用 `services/`、返回结果；不得在 handler 中直接触碰 `fs`、`child_process`、路径拼接或复杂业务逻辑。
+- MUST: 对请求响应型 handler 使用 `ipc/_kit/wrap-handler.ts`，对流式 handler 使用 `ipc/_kit/stream-channel.ts`；不得在业务 handler 中重复手写错误归一化或 MessagePort 生命周期守卫。
+- MUST: 将业务编排写在 `services/`，将纯逻辑和解析器写在 `domain/`，将文件系统、路径、进程、日志、ID 生成等能力写在 `infra/`。
+- MUST: 将持久化路径通过 `infra/paths` 与 `infra/storage/project-paths.ts` 提供的函数统一生成，不得在 service 或 handler 层手写 `join(...)` 拼装项目作用域目录。
+- MUST: 将长期存活的子进程、定时器、watcher、registry 和其他资源注册到主进程 lifecycle/disposable 体系中，确保退出时能清理。
+- MUST: 通过 `sessionRegistry` 管理活跃 ACP session，不得在各业务模块各自维护 `Map<string, AcpSession>`。
+- MUST: 通过 `@main/infra/logger` 或渲染侧对应转发 logger 记录日志，不得在主进程内使用散落的 `console.log`。
+- SHOULD: 让 `domain/` 保持可离线单测，不依赖 Electron、`@electron-toolkit/*`、`services/`、`ipc/` 或绝大多数 `infra/`。
+- SHOULD: 让 `infra/` 只提供能力，不反向依赖 `services/` 或 `ipc/`。
+- MAY: 在被 ESLint 白名单允许的历史目录中保留过渡实现，但若修改这些文件，应优先推动其回归分层规范。
+
+## Examples
+
+- Good: `electron/main/ipc/chat.ts` 中先 `validate(streamMessageInputSchema, input)`，再调用 service/session 入口，而不是直接创建文件路径或子进程。
+- Good: `electron/main/services/proposal/**` 中编排 apply/archive 流程，`infra/storage/**` 只负责文件读写与序列化。
+- Good: `electron/main/infra/process/acp-process-pool.ts` 管理 ACP 子进程重试、give-up 状态和退出清理。
+- Bad: 在 `ipc/*.ts` 里直接 `spawn(...)`、`fs.writeFile(...)` 或导入 `@main/infra/storage/*`。
+- Bad: 在 `services/` 中硬编码 `session-${Date.now()}`、`process.resourcesPath` 或项目数据目录字符串。
+
+## Verification
+
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm vitest run electron/main/__tests__/**/*.{test,spec}.ts`
+- `pnpm vitest run shared/__tests__/**/*.{test,spec}.ts`
+- 修改主进程 layering、path、process、ipc kit 相关代码时，重点检查 `eslint.config.mjs` 的限制是否仍与文档一致。
+
+## Maintenance
+
+- 当 `electron/main/` 新增层、目录职责变化、ESLint layering 规则变化、session/process/path 基础设施重构时，必须更新本文档。
+- 当新的 handler 模式、错误处理模式或生命周期治理方式成为仓库默认做法时，必须更新本文档中的 Rules 与 Examples。
+- 如果主进程规则与 `IPC.md`、`Architecture.md` 出现边界重叠，应把 channel 契约保留在 `IPC.md`，把进程内部约束保留在本文档。

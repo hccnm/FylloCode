@@ -1,276 +1,70 @@
-# 数据模型
+---
+name: DataModel
+description: 跨进程共享类型、持久化结构、序列化规则与兼容性约束
+keywords: [data-model, shared-types, persistence, serialization]
+---
 
-所有共享类型定义在 `shared/types/`，主进程和渲染进程均可导入，路径别名 `@shared/types/*`。
+# DataModel
 
-## IPC 通用类型（`ipc.ts`）
+## Purpose
 
-```ts
-// 所有 handle channel 的统一响应格式
-type IpcResponse<T> = { ok: true; data: T } | { ok: false; error: IpcErrorInfo };
+定义 FylloCode 的共享类型、核心实体、持久化元数据结构、消息文件格式以及数据契约演进时必须遵守的兼容性规则。任何涉及 `shared/types/`、项目数据目录、JSON/JSONL 结构、跨进程 payload 或默认值语义的工作，都必须先阅读本文档。
 
-// 流式消息（通过 MessagePort 传输）
-type StreamMessage<T> =
-  | { type: "chunk"; data: T }
-  | { type: "done"; data: { totalTokens: number } }
-  | { type: "error"; data: IpcErrorInfo };
+## Applicability
 
-interface StreamChunkData {
-  content: string;
-  tokenCount: number;
-}
+- 适用于 `shared/types/**`、`shared/constants/**`、`shared/schemas/**`。
+- 适用于 `electron/main/infra/storage/**`、`electron/main/services/**` 中读写持久化结构的代码。
+- 适用于 `data/` 对应的开发数据布局与生产 `userData` 映射。
+- 不覆盖 channel 语义与 bridge 公开接口；见 `guidelines/IPC.md`。
 
-// 事件推送消息（ipcRenderer.on 订阅）
-interface EventMessage<T> {
-  type: string;
-  payload: T;
-}
-```
+## Sources of Truth
 
-## Chat（`chat.ts`）
+- `shared/types/**`
+- `shared/constants/error-codes.ts`
+- `shared/schemas/ipc/**`
+- `electron/main/infra/storage/**`
+- `electron/main/infra/storage/project-paths.ts`
+- `electron/main/infra/paths/index.ts`
+- `electron/main/services/**`
+- `electron/main/__tests__/infra/storage/**`
+- `openspec/specs/project-store-persistence/spec.md`
+- `openspec/specs/session-meta-storage/spec.md`
+- `openspec/specs/proposal-apply-run/spec.md`
+- `openspec/specs/integration-providers/spec.md`
+- `openspec/specs/global-preferences/spec.md`
 
-**核心实体：**
+## Rules
 
-```ts
-interface Session {
-  id: string;
-  projectId: string;
-  title: string;
-  status: "running" | "ended";
-  turnCount: number;
-  createdAt: Date;
-  updatedAt: Date;
-  messages: Message[];
-  fileChanges: FileChange[];
-}
-```
+- MUST: 将跨进程共享的实体、请求/响应类型和核心值对象定义在 `shared/types/`，避免前后端各自声明不兼容的同名结构。
+- MUST: 将 IPC 入参的运行时校验 schema 与共享类型分开管理；类型放在 `shared/types/`，校验放在 `shared/schemas/ipc/`。
+- MUST: 将项目作用域数据目录通过 `project-paths.ts` 统一寻址，保持 `projects/<encodedPath>/...` 结构稳定。
+- MUST: 让持久化文件格式与运行时类型同步演进；当 JSON、JSONL、meta 文件结构变化时，必须同步更新读写实现、测试和相关 guideline。
+- MUST: 保持共享响应结构 `IpcResponse<T>`、流式消息结构 `StreamMessage<T>`、错误信息结构 `IpcErrorInfo` 的统一来源，避免局部重定义。
+- MUST: 将新错误码加入 `shared/constants/error-codes.ts`，并把依赖这些错误码的 IPC 返回值保持为共享联合类型。
+- MUST: 在默认值、可选字段、时间戳格式、枚举值含义发生变化时，先判断这是否是行为契约变化；若是，先更新 OpenSpec。
+- SHOULD: 使用字符串时间戳或文件友好格式持久化运行状态，而不是把 `Date` 实例直接隐式写入 JSON。
+- SHOULD: 为每种关键持久化结构保留对应的 storage/service 测试，证明序列化与反序列化行为。
+- MAY: 在仅限前端展示的局部视图模型中派生附加字段，但不要把这些派生字段反向写进共享持久化结构。
 
-**消息类型（判别联合）：**
+## Examples
 
-| type       | 额外字段                                        | 说明           |
-| ---------- | ----------------------------------------------- | -------------- |
-| `user`     | `content`, `attachments?`                       | 用户输入       |
-| `thinking` | `summary`, `content`                            | Agent 思考过程 |
-| `text`     | `content`                                       | Agent 文本回复 |
-| `file-op`  | `operations: FileChange[]`                      | 文件变更操作   |
-| `command`  | `command`, `output`, `success`                  | 执行命令       |
-| `confirm`  | `description`, `action`, `resolved`, `allowed?` | 需要用户确认   |
+- Good: `shared/types/ipc.ts` 统一定义 `IpcResponse<T>` 与 `StreamMessage<T>`，供 main/preload/renderer 三端消费。
+- Good: proposal apply 运行状态写入 `data/projects/<encodedPath>/apply-runs/<changeId>/run.json` 与 `stage-*.messages.jsonl`，而不是散落到多个临时目录。
+- Good: `ProjectIntegrationConfig` 作为项目维度 integration 挂载配置，由主进程 storage/service 统一读写。
+- Bad: 在 renderer 侧本地声明一个与 `shared/types/project.ts` 名字相同但字段不一致的 `ProjectInfo`。
+- Bad: 未更新 storage 测试就修改 `meta.json`、`connections.json`、`run.json`、`archive.json` 结构。
 
-**文件变更：**
+## Verification
 
-```ts
-interface FileChange {
-  filePath: string;
-  changeType: "added" | "modified" | "deleted";
-  summary: string; // 如 "+42 lines"
-  diffLines: DiffLine[];
-}
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm vitest run electron/main/__tests__/infra/storage/**/*.spec.ts`
+- `pnpm vitest run electron/main/__tests__/services/**/*.spec.ts`
+- `pnpm vitest run shared/__tests__/**/*.{test,spec}.ts`
+- 对持久化结构有改动时，手动检查 `data/` 目录约定、开发/生产路径映射和 JSON 序列化格式是否仍与代码一致。
 
-interface DiffLine {
-  type: "added" | "removed" | "context";
-  content: string;
-  oldLineNumber?: number;
-  newLineNumber?: number;
-}
-```
+## Maintenance
 
-**其他类型：**
-
-- `AgentType`: `"claude-code" | "codex"`
-- `AgentStatus`: `"idle" | "thinking" | "executing" | "awaiting-confirmation"`
-- `ModeType`: `"auto" | "manual"`
-- `SidebarTab`: `"sessions" | "files"`
-- `DiffViewMode`: `"side-by-side" | "inline"`
-
-## Project（`project.ts`）
-
-```ts
-interface ProjectInfo {
-  id;
-  name;
-  path;
-  lastOpenedAt;
-}
-interface ProjectSummary extends ProjectInfo {
-  agent: ProjectAgent;
-}
-interface ProjectAgent {
-  id;
-  name;
-  type: "claude-code" | "codex";
-}
-type ProjectTemplate = "empty" | "git";
-interface CreateProjectForm {
-  name;
-  path;
-  template;
-  gitUrl?;
-}
-```
-
-## Workflow（`workflow.ts`）
-
-**核心实体：**
-
-```ts
-type WorkflowStageType =
-  | "proposal-apply"
-  | "code-review"
-  | "security-check"
-  | "create-pr"
-  | "custom";
-
-interface WorkflowStage {
-  id: string;
-  name: string;
-  type: WorkflowStageType;
-  agent?: string;
-  prompt?: string;
-  when?: string;
-  onFailure?: string;
-  mcp?: string[];
-  skills?: string[];
-}
-
-interface WorkflowTemplate {
-  id: string;
-  name: string;
-  description?: string;
-  version?: number;
-  source: "built-in" | "custom";
-  yaml: string;
-  stages: WorkflowStage[];
-}
-```
-
-**请求与响应：**
-
-```ts
-interface WorkflowSaveRequest {
-  name: string;
-  yaml: string;
-  projectId?: string;
-}
-
-interface WorkflowListRequest {
-  projectId?: string;
-}
-
-interface WorkflowListResult {
-  templates: WorkflowTemplate[];
-}
-
-interface WorkflowDeleteRequest {
-  name: string;
-  projectId?: string;
-}
-```
-
-## Proposal Apply Run（`proposal.ts`）
-
-项目内 proposal apply 运行状态存放在：
-
-```text
-data/projects/<encodedProjectPath>/apply-runs/<changeId>/
-├── run.json
-├── stage-0.messages.jsonl
-├── stage-N.messages.jsonl
-├── archive.json
-└── archive.messages.jsonl
-```
-
-`run.json` 保存 `ApplyRunMeta`；每个 `stage-{N}.messages.jsonl` 按追加顺序保存该 stage
-的 `UIMessage<MessageMeta>`，新运行会先写入 stage user message，再追加 assistant message。
-
-`archive.json` 保存独立的 `ArchiveRunMeta`：
-
-```ts
-interface ArchiveRunMeta {
-  runId: string;
-  changeId: string;
-  status: "running" | "done" | "error";
-  startedAt: string;
-  updatedAt: string;
-}
-```
-
-`archive.messages.jsonl` 保存 archive 流程的 user + assistant 消息，独立于 stage 消息文件。
-
-## Integration（`integration.ts`）
-
-```ts
-type IntegrationCategoryId =
-  | "project-management"
-  | "source-control"
-  | "ci-cd"
-  | "deployment"
-  | "communication"
-  | "observability";
-
-type ProviderConnectionState = "not-connected" | "connected" | "expired";
-
-interface ProviderManifest {
-  id;
-  name;
-  description;
-  authType: "api-token" | "oauth";
-  credentialFields: ProviderCredentialField[];
-  capabilities: ProviderCapability[];
-  logoIcon;
-  logoColor;
-  comingSoon: boolean;
-}
-
-interface ProviderConnection {
-  providerId;
-  state: "connected" | "expired";
-  accountName?;
-  accountId?;
-  connectedAt?;
-  credentialPreview?;
-}
-
-interface ProviderResource {
-  id;
-  name;
-  providerId;
-  resourceType;
-  subtitle?;
-}
-
-interface ProjectIntegrationEntry {
-  providerId;
-  resourceType;
-  resourceId;
-}
-
-type ProjectIntegrationConfig = Record<IntegrationCategoryId, ProjectIntegrationEntry[]>;
-```
-
-当前 manifest 允许存在多个 provider 条目，但当前真实可连接、可探测、可拉取资源的 provider 仅覆盖 `yunxiao`，对应：
-
-- `projex-project`
-- `codeup-repo`
-- `flow-pipeline`
-
-## Settings（`settings.ts`）
-
-```ts
-interface PreferencesConfig {
-  theme: "light" | "dark" | "system";
-  language: string;
-  defaultAgentMode: "auto" | "manual";
-  notificationMethods: ("system" | "sound" | "in-app")[];
-  autoSaveSession: boolean;
-  tokenStatsPeriod: "daily" | "weekly" | "monthly";
-  budgetAlert: { value: number; unit: "tokens" | "usd" };
-}
-
-interface AgentInfo {
-  id;
-  name;
-  description;
-  installed;
-  version?;
-  docsUrl;
-}
-```
+- 当共享类型目录、存储格式、消息文件布局、错误码来源或默认值语义变化时，必须更新本文档。
+- 当新增 capability 引入新的持久化资源、共享实体或跨进程 payload 时，应补充本文档中的 Rules 与 Examples。
+- 如果 `shared/types/` 的注释、名称或结构与 OpenSpec requirement 冲突，应以 spec 和实际运行契约为准并修复文档。

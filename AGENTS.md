@@ -53,7 +53,7 @@ pnpm test:coverage    # 生成覆盖率报告
 
 ## 文档归类
 
-如需更多详细信息，Agent 可以主动查看下方的各类详细文档。
+如需更多详细信息，Agent 可以主动查看下方的核心 guidelines 文档。
 
 - **架构文档** - [Architecture](guidelines/Architecture.md)
 - **主进程分层** - [MainProcess](guidelines/MainProcess.md)
@@ -62,6 +62,9 @@ pnpm test:coverage    # 生成覆盖率报告
 - **IPC 通信** - [IPC](guidelines/IPC.md)
 - **测试规范** - [Testing](guidelines/Testing.md)
 - **编码规范** - [CodeStyle](guidelines/CodeStyle.md)
-- **OpenSpec 使用规范** - [OpenSpec](guidelines/OpenSpec.md)
+- **构建与打包** - [Build](guidelines/Build.md)
+- **开发工作流** - [DeveloperWorkflow](guidelines/DeveloperWorkflow.md)
+
+`guidelines/reference/` 下存放 ACP、第三方集成等专题参考资料，仅在相关任务涉及对应领域时查阅。
 
 若 Agent 准备开展分析、设计、实现、重构、测试或其他 action，必须先主动查阅与任务相关的现有文档，了解规范与约束后，再决定下一步。
