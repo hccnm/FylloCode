@@ -4,6 +4,23 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.5.0] - 2026-05-24
+
+### Added
+
+- `create-proposal`: now bootstraps missing OpenSpec project structure before invoking the CLI, including `openspec/specs/`, `openspec/changes/archive/`, and a default `openspec/config.yaml` when absent.
+- `create-proposal`: now augments existing OpenSpec configs with the default `guidelines-evaluation` task rule when the rule is missing, while preserving other user-defined config fields.
+
+### Changed
+
+- `archive-change`: workspace finalization now includes structured recovery for linked-worktree merge divergence, allowing safe rebase-and-retry flows before cleanup continues.
+- `archive-change`: confirmed archive handling now distinguishes CLI failure from "archive not confirmed" outcomes, preserving structured downstream error handling.
+
+### Fixed
+
+- `archive-change`: no longer treats exit-0 OpenSpec runs as success unless stdout confirms the archive completed for the requested change.
+- `archive-change`: blocks commit/merge/worktree cleanup when archival is unconfirmed, avoiding false-success cleanup on grey-area CLI outcomes.
+
 ## [0.4.0] - 2026-05-20
 
 ### Changed

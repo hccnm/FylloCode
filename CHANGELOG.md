@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.10.0] - 2026-05-24
+
+This release extends the built-in MCP workflow layer beyond the initial `0.9.0` stable baseline. It adds the new `fyllo-skills` bundled server, deepens `fyllo-specs` automation around OpenSpec setup and archive finalization, and fixes a visible chat stop-state issue during the first-message setup path.
+
+### Added
+
+- Bundled `fyllo-skills` MCP server with a `guidelines` tool for repository guideline authoring workflows
+- `fyllo-skills` `guidelines` read mode, returning scanned `guidelines/**/*.md` metadata so agents can inspect local guideline coverage
+- Automatic OpenSpec bootstrap in `fyllo-specs create-proposal`, including missing directory initialization and default config creation when needed
+- Automatic `guidelines-evaluation` rule injection for OpenSpec configs created or reused by `fyllo-specs`
+
+### Changed
+
+- `fyllo-specs archive-change` now performs structured archive finalization recovery after linked-worktree merge divergence, including safe rebase-and-retry handling
+- `fyllo-specs archive-change` now confirms OpenSpec archival via stdout success markers before continuing with downstream git cleanup
+- Repository guidelines were restructured into a leaner topic index with `Build` and `DeveloperWorkflow` split into dedicated documents
+
+### Fixed
+
+- Chat stop handling during the initial ACP setup path, so the first submitted message can be cancelled cleanly before connection/session setup completes
+- Archive flows that previously could treat exit-0-but-unconfirmed OpenSpec outcomes as success and continue destructive cleanup
+
+### Notes
+
+- The in-progress `project-health-check` OpenSpec change is not included in this release because it has not been implemented in product code yet
+
 ## [0.9.0] - 2026-05-20
 
 First stable `0.9.0` release. On top of the initial beta baseline, FylloCode now further completes multi-worktree orchestration, session-list interaction refinements, built-in specs workspace capabilities, and a set of product-level UX and reliability improvements needed for broader day-to-day use.
