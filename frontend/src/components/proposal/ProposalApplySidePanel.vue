@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import UIMessageList from "@renderer/components/shared/UIMessageList.vue";
+import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import type { MessageMeta } from "@shared/types/chat";
 import type { ApplyRunMeta } from "@shared/types/proposal";
 import type { UIMessage } from "ai";
@@ -96,7 +96,7 @@ function getStageCount(): number {
         </div>
       </div>
 
-      <UIMessageList
+      <ChatMessageList
         v-else
         :messages="messages"
         :status="isStreaming ? 'streaming' : 'ready'"

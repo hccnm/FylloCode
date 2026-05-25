@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import UIMessageList from "@renderer/components/shared/UIMessageList.vue";
+import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import { chatApi } from "@renderer/api/chat";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
@@ -65,7 +65,7 @@ function mountList(
     template: "<div><slot /></div>",
   };
 
-  return mount(UIMessageList, {
+  return mount(ChatMessageList, {
     props: {
       messages,
       status,

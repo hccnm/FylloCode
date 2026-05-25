@@ -42,10 +42,10 @@ function mountContainer(): VueWrapper {
     global: {
       plugins: [createPinia()],
       stubs: {
-        UIMessageList: {
-          props: ["messages", "status", "type", "agentId"],
+        ChatMessageList: {
+          props: ["messages", "status", "type"],
           template:
-            '<div data-test="message-list">{{ messages.length }}|{{ status }}|{{ type }}|{{ agentId ?? "none" }}</div>',
+            '<div data-test="message-list">{{ messages.length }}|{{ status }}|{{ type }}</div>',
         },
         ChatStreamError: {
           template: '<div data-test="stream-error">{{ errorMessage }}</div>',
@@ -88,7 +88,7 @@ describe("ChatContainer", () => {
   it("passes active session state to the message list and renders the prompt panel", async () => {
     const wrapper = mountContainer();
 
-    expect(wrapper.get('[data-test="message-list"]').text()).toBe("0|ready|chat|none");
+    expect(wrapper.get('[data-test="message-list"]').text()).toBe("0|ready|chat");
     expect(wrapper.find('[data-test="prompt-panel"]').exists()).toBe(true);
 
     const session = makeSession([{ name: "review", description: "Review code" }]);
@@ -96,7 +96,7 @@ describe("ChatContainer", () => {
     activeSessionRef.value = session;
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.get('[data-test="message-list"]').text()).toBe("1|ready|chat|claude-code");
+    expect(wrapper.get('[data-test="message-list"]').text()).toBe("1|ready|chat");
     expect(wrapper.find('[data-test="prompt-panel"]').exists()).toBe(true);
   });
 
@@ -111,7 +111,7 @@ describe("ChatContainer", () => {
 
     const wrapper = mountContainer();
 
-    expect(wrapper.get('[data-test="message-list"]').text()).toBe("2|ready|chat|claude-code");
+    expect(wrapper.get('[data-test="message-list"]').text()).toBe("2|ready|chat");
     expect(wrapper.get('[data-test="stream-error"]').text()).toBe(
       "The stream disconnected unexpectedly"
     );
