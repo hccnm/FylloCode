@@ -37,6 +37,7 @@ describe("useProjectStore", () => {
           id: "b",
           name: "Project B",
           path: "/tmp/b",
+          metaPath: "/tmp/b-meta.json",
           createdAt: "2026-04-20T08:00:00.000Z" as unknown as Date,
           lastOpenedAt: "2026-04-29T08:00:00.000Z" as unknown as Date,
         },
@@ -44,6 +45,7 @@ describe("useProjectStore", () => {
           id: "a",
           name: "Project A",
           path: "/tmp/a",
+          metaPath: "/tmp/a-meta.json",
           createdAt: "2026-04-19T08:00:00.000Z" as unknown as Date,
           lastOpenedAt: "2026-04-30T08:00:00.000Z" as unknown as Date,
         },
@@ -67,6 +69,7 @@ describe("useProjectStore", () => {
           id: "a",
           name: "Project A",
           path: "/tmp/a",
+          metaPath: "/tmp/a-meta.json",
           createdAt: "2026-04-19T08:00:00.000Z" as unknown as Date,
           lastOpenedAt: "2026-04-30T08:00:00.000Z" as unknown as Date,
         },
@@ -88,6 +91,7 @@ describe("useProjectStore", () => {
         id: "missing",
         name: "Missing Project",
         path: "/tmp/missing",
+        metaPath: "/tmp/missing-meta.json",
         createdAt: "2026-04-20T08:00:00.000Z" as unknown as Date,
         lastOpenedAt: "2026-04-30T08:00:00.000Z" as unknown as Date,
         pathMissing: true,
@@ -121,6 +125,7 @@ describe("useProjectStore", () => {
           id: "a",
           name: "Project A",
           path: "/tmp/a",
+          metaPath: "/tmp/a-meta.json",
           createdAt: "2026-04-19T08:00:00.000Z" as unknown as Date,
           lastOpenedAt: "2026-04-30T08:00:00.000Z" as unknown as Date,
         },
@@ -138,5 +143,111 @@ describe("useProjectStore", () => {
     expect(projectApi.remove).toHaveBeenCalledWith("a");
     expect(store.projects).toHaveLength(0);
     expect(store.recentProjects).toHaveLength(0);
+  });
+
+  it("refreshes the active project in place without clearing sessions", async () => {
+    const store = useProjectStore();
+    store.projects = [
+      {
+        id: "a",
+        name: "Project A",
+        path: "/tmp/a",
+        metaPath: "/tmp/a-meta.json",
+        createdAt: new Date("2026-04-19T08:00:00.000Z"),
+        lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
+      },
+    ];
+    store.currentProject = store.projects[0]!;
+    vi.mocked(projectApi.getById).mockResolvedValue({
+      ok: true,
+      data: {
+        id: "a",
+        name: "Project A",
+        path: "/tmp/a",
+        metaPath: "/tmp/a-meta.json",
+        healthScore: 75,
+        createdAt: "2026-04-19T08:00:00.000Z" as unknown as Date,
+        lastOpenedAt: "2026-05-01T08:00:00.000Z" as unknown as Date,
+      },
+    });
+
+    await store.refreshCurrentProject();
+
+    expect(projectApi.getById).toHaveBeenCalledWith("a");
+    expect(store.currentProject?.healthScore).toBe(75);
+    expect(store.projects[0]?.healthScore).toBe(75);
+  });
+
+  it("keeps the active project unchanged when refresh fails", async () => {
+    const store = useProjectStore();
+    store.currentProject = {
+      id: "a",
+      name: "Project A",
+      path: "/tmp/a",
+      metaPath: "/tmp/a-meta.json",
+      healthScore: 20,
+      createdAt: new Date("2026-04-19T08:00:00.000Z"),
+      lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
+    };
+    vi.mocked(projectApi.getById).mockResolvedValue({
+      ok: false,
+      error: { code: "UNKNOWN_ERROR", message: "network failed" },
+    });
+
+    await expect(store.refreshCurrentProject()).rejects.toThrow("network failed");
+
+    expect(store.currentProject?.healthScore).toBe(20);
+  });
+
+  it("does not overwrite currentProject when active project changes during refresh", async () => {
+    const store = useProjectStore();
+    const projectA = {
+      id: "a",
+      name: "Project A",
+      path: "/tmp/a",
+      metaPath: "/tmp/a-meta.json",
+      healthScore: 20,
+      createdAt: new Date("2026-04-19T08:00:00.000Z"),
+      lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
+    };
+    const projectB = {
+      id: "b",
+      name: "Project B",
+      path: "/tmp/b",
+      metaPath: "/tmp/b-meta.json",
+      healthScore: 90,
+      createdAt: new Date("2026-04-21T08:00:00.000Z"),
+      lastOpenedAt: new Date("2026-05-02T08:00:00.000Z"),
+    };
+    store.projects = [projectA, projectB];
+    store.currentProject = projectA;
+
+    let resolveGetById: ((value: unknown) => void) | null = null;
+    vi.mocked(projectApi.getById).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveGetById = resolve as (value: unknown) => void;
+        })
+    );
+
+    const refreshPromise = store.refreshCurrentProject();
+    store.currentProject = projectB;
+
+    resolveGetById!({
+      ok: true,
+      data: {
+        id: "a",
+        name: "Project A",
+        path: "/tmp/a",
+        metaPath: "/tmp/a-meta.json",
+        healthScore: 75,
+        createdAt: "2026-04-19T08:00:00.000Z" as unknown as Date,
+        lastOpenedAt: "2026-05-01T08:00:00.000Z" as unknown as Date,
+      },
+    });
+    await refreshPromise;
+
+    expect(store.currentProject?.id).toBe("b");
+    expect(store.currentProject?.healthScore).toBe(90);
   });
 });

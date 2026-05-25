@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useProjectStore } from "@renderer/stores/project";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
+import { useProjectStore } from "@renderer/stores/project";
 import { useColorMode } from "@vueuse/core";
 import type { RecentProject } from "@shared/types/project";
+import ProjectHealthPopover from "./ProjectHealthPopover.vue";
 
 const { goToDefault } = useDefaultAppRoute();
 const projectStore = useProjectStore();
@@ -47,7 +48,7 @@ function toggleTheme(): void {
     <div class="w-[20%] h-full" />
 
     <!-- Center: Project Switcher -->
-    <div class="w-[60%] h-full flex items-center justify-center">
+    <div class="w-[60%] h-full flex items-center justify-center gap-2">
       <UDropdownMenu
         :items="dropdownItems"
         :content="{
@@ -69,6 +70,8 @@ function toggleTheme(): void {
           <UIcon name="i-lucide-chevron-down" class="w-4 h-4 text-muted" />
         </div>
       </UDropdownMenu>
+
+      <ProjectHealthPopover />
     </div>
 
     <!-- Right: Controls -->

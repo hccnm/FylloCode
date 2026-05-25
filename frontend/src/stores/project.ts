@@ -194,6 +194,33 @@ export const useProjectStore = defineStore("project", () => {
     return await activateProject(updated.data);
   }
 
+  async function refreshCurrentProject(): Promise<void> {
+    const project = currentProject.value;
+    if (!project) {
+      return;
+    }
+
+    const result = await projectApi.getById(project.id);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
+    if (!result.data) {
+      return;
+    }
+
+    if (currentProject.value?.id !== project.id) {
+      return;
+    }
+
+    const refreshed = normalizeProject(result.data);
+    upsertProject(refreshed);
+    currentProject.value = {
+      ...currentProject.value,
+      ...refreshed,
+    };
+  }
+
   async function removeRecentProject(projectId: string): Promise<void> {
     const result = await projectApi.remove(projectId);
     if (!result.ok) {
@@ -219,6 +246,7 @@ export const useProjectStore = defineStore("project", () => {
     openFolder,
     openRecentProject,
     switchProject,
+    refreshCurrentProject,
     removeRecentProject,
   };
 });

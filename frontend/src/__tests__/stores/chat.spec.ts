@@ -91,6 +91,7 @@ function prepareDraftConversation(): void {
     id: "project-1",
     name: "Project 1",
     path: "/tmp/project-1",
+    metaPath: "/tmp/project-1-meta.json",
     createdAt: new Date("2026-04-30T08:00:00.000Z"),
     lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
   };
@@ -139,6 +140,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -266,6 +268,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -300,6 +303,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -346,6 +350,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -380,6 +385,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -422,6 +428,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -462,6 +469,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -502,6 +510,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -539,6 +548,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -584,6 +594,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -631,6 +642,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };
@@ -671,6 +683,7 @@ describe("useChatStore", () => {
       id: "project-1",
       name: "Project 1",
       path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
     };

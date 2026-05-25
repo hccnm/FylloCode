@@ -55,6 +55,7 @@ export async function updateProject(input: {
   patch: {
     name?: string;
     path?: string;
+    healthScore?: number;
     createdAt?: Date | string;
     lastOpenedAt?: Date | string;
     pathMissing?: boolean;
@@ -69,6 +70,7 @@ export async function updateProject(input: {
     id: existing.id,
     name: input.patch.name ?? existing.name,
     path: input.patch.path ? expandHomePath(input.patch.path) : existing.path,
+    healthScore: input.patch.healthScore ?? existing.healthScore,
     createdAt: input.patch.createdAt
       ? new Date(input.patch.createdAt)
       : new Date(existing.createdAt),
@@ -91,6 +93,7 @@ export async function adoptExistingFolder(projectPath: string): Promise<ProjectI
     id,
     name: existing?.name ?? getProjectNameFromPath(projectPath),
     path: projectPath,
+    healthScore: existing?.healthScore,
     createdAt: existing ? new Date(existing.createdAt) : new Date(),
     lastOpenedAt: new Date(),
   });

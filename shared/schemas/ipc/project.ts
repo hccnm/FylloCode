@@ -7,6 +7,7 @@ export const updateProjectInputSchema = z.object({
   patch: z.object({
     name: z.string().min(1).optional(),
     path: z.string().min(1).optional(),
+    healthScore: z.number().min(0).max(100).optional(),
     createdAt: z.union([z.date(), z.string()]).optional(),
     lastOpenedAt: z.union([z.date(), z.string()]).optional(),
     pathMissing: z.boolean().optional(),

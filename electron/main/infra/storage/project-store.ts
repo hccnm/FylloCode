@@ -15,7 +15,7 @@ function projectDir(id: string): string {
   return join(projectsDir(), id);
 }
 
-function metaPath(id: string): string {
+export function getProjectMetaPath(id: string): string {
   return join(projectDir(id), "meta.json");
 }
 
@@ -32,6 +32,8 @@ export function toProjectInfo(meta: ProjectMeta, options?: { pathMissing?: boole
     id: meta.id,
     name: meta.name,
     path: meta.path,
+    metaPath: getProjectMetaPath(meta.id),
+    healthScore: meta.healthScore,
     createdAt: new Date(meta.createdAt),
     lastOpenedAt: new Date(meta.lastOpenedAt),
     pathMissing: options?.pathMissing,
@@ -42,29 +44,36 @@ export function createProjectMeta(input: {
   id: string;
   name: string;
   path: string;
+  healthScore?: number;
   createdAt?: Date;
   lastOpenedAt?: Date;
 }): ProjectMeta {
   const createdAt = input.createdAt ?? new Date();
   const lastOpenedAt = input.lastOpenedAt ?? createdAt;
 
-  return {
+  const meta: ProjectMeta = {
     id: input.id,
     name: input.name,
     path: input.path,
     createdAt: createdAt.toISOString(),
     lastOpenedAt: lastOpenedAt.toISOString(),
   };
+
+  if (input.healthScore !== undefined) {
+    meta.healthScore = input.healthScore;
+  }
+
+  return meta;
 }
 
 export async function saveProject(meta: ProjectMeta): Promise<void> {
   await ensureDir(projectDir(meta.id));
-  await fs.writeFile(metaPath(meta.id), JSON.stringify(meta, null, 2), "utf8");
+  await fs.writeFile(getProjectMetaPath(meta.id), JSON.stringify(meta, null, 2), "utf8");
 }
 
 export async function loadProject(id: string): Promise<ProjectMeta | null> {
   try {
-    const content = await fs.readFile(metaPath(id), "utf8");
+    const content = await fs.readFile(getProjectMetaPath(id), "utf8");
     return parseProjectMeta(content);
   } catch {
     return null;
@@ -80,7 +89,7 @@ export async function listProjects(): Promise<ProjectMeta[]> {
         .filter((entry) => entry.isDirectory())
         .map(async (entry) => {
           try {
-            const content = await fs.readFile(metaPath(entry.name), "utf8");
+            const content = await fs.readFile(getProjectMetaPath(entry.name), "utf8");
             return parseProjectMeta(content);
           } catch {
             return null;
@@ -95,7 +104,7 @@ export async function listProjects(): Promise<ProjectMeta[]> {
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  await Promise.allSettled([fs.unlink(metaPath(id))]);
+  await Promise.allSettled([fs.unlink(getProjectMetaPath(id))]);
 }
 
 export function getProjectNameFromPath(projectPath: string): string {
