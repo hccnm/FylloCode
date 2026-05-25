@@ -40,6 +40,7 @@ keywords: [electron, main-process, ipc, services, infra]
 - MUST: 将业务编排写在 `services/`，将纯逻辑和解析器写在 `domain/`，将文件系统、路径、进程、日志、ID 生成等能力写在 `infra/`。
 - MUST: 将持久化路径通过 `infra/paths` 与 `infra/storage/project-paths.ts` 提供的函数统一生成，不得在 service 或 handler 层手写 `join(...)` 拼装项目作用域目录。
 - MUST: 将长期存活的子进程、定时器、watcher、registry 和其他资源注册到主进程 lifecycle/disposable 体系中，确保退出时能清理。
+- MUST: 对会派生孙进程的子进程（典型如 ACP agent）启用进程组隔离，并在 dispose 阶段按整棵树清理：POSIX 平台 `spawn(..., { detached: true })` 让 child 成为 process group leader，dispose 时用 `process.kill(-pid, signal)` 对组发信号；Windows 平台不设置 `detached`，dispose 时改用 `taskkill /T /F` 递归杀树。直接对单个 child 调 `kill()` 不会传递到孙进程，会留下孤儿。
 - MUST: 通过 `sessionRegistry` 管理活跃 ACP session，不得在各业务模块各自维护 `Map<string, AcpSession>`。
 - MUST: 通过 `@main/infra/logger` 或渲染侧对应转发 logger 记录日志，不得在主进程内使用散落的 `console.log`。
 - SHOULD: 让 `domain/` 保持可离线单测，不依赖 Electron、`@electron-toolkit/*`、`services/`、`ipc/` 或绝大多数 `infra/`。

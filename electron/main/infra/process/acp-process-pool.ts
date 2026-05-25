@@ -34,6 +34,13 @@ let shuttingDown = false;
 // The length of this array doubles as the give-up threshold.
 const BACKOFF_MS = [0, 500, 2_000, 5_000] as const;
 
+const GRACEFUL_CLOSE_TIMEOUT_MS = 500;
+const SIGKILL_GRACE_MS = 500;
+const TASKKILL_TIMEOUT_MS = 500;
+const CLOSE_SESSION_TIMEOUT_MS = 300;
+
+const IS_WINDOWS = process.platform === "win32";
+
 function broadcastAgentUnavailable(agentId: string, reason: string): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send(AcpAgentChannels.agentUnavailable, { agentId, reason });
@@ -80,6 +87,7 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
   const child = spawn(cmd, args, {
     stdio: ["pipe", "pipe", "pipe"],
     env: process.env,
+    detached: !IS_WINDOWS,
   }) as ChildProcessWithoutNullStreams;
 
   // Forward stderr into the logger so diagnostics survive in prod.
@@ -211,6 +219,65 @@ export async function getOrStartProcess(agentId: string): Promise<AgentProcess> 
   return startProcess(agentId, 0);
 }
 
+async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {
+  const pid = child.pid;
+  if (pid === undefined) return;
+
+  if (IS_WINDOWS) {
+    await new Promise<void>((resolve) => {
+      try {
+        const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
+        let settled = false;
+        const settle = (): void => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        killer.once("close", settle);
+        killer.once("error", (err: unknown) => {
+          logger.warn(`[infra.process.acp] taskkill failed for pid=${pid}: ${String(err)}`);
+          settle();
+        });
+        setTimeout(() => {
+          if (!settled) {
+            logger.warn(`[infra.process.acp] taskkill timed out for pid=${pid}`);
+          }
+          settle();
+        }, TASKKILL_TIMEOUT_MS);
+      } catch (err: unknown) {
+        logger.warn(`[infra.process.acp] taskkill spawn threw for pid=${pid}: ${String(err)}`);
+        resolve();
+      }
+    });
+    return;
+  }
+
+  // POSIX: signal the entire process group (negative pid). Requires the
+  // child to have been spawned with `detached: true` so it became its own
+  // group leader (pgid === pid).
+  try {
+    process.kill(-pid, "SIGTERM");
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ESRCH") return;
+    logger.warn(`[infra.process.acp] SIGTERM failed for pgid=${pid}: ${String(err)}`);
+  }
+
+  await new Promise<void>((resolve) => setTimeout(resolve, SIGKILL_GRACE_MS));
+
+  try {
+    process.kill(-pid, 0);
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ESRCH") return;
+  }
+
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ESRCH") return;
+    logger.warn(`[infra.process.acp] SIGKILL failed for pgid=${pid}: ${String(err)}`);
+  }
+}
+
 async function dispose(): Promise<void> {
   shuttingDown = true;
   const entries = Array.from(pool.values());
@@ -220,10 +287,15 @@ async function dispose(): Promise<void> {
   await Promise.all(
     entries.map(async (entry) => {
       // 1. Graceful: close every active session so the agent can clean up.
+      //    Cap each closeSession with a short timeout — if the agent does
+      //    not respond we fall through to signal-based teardown anyway.
       const closePromises = Array.from(entry.sessionHandlers.keys()).map((sessionId) =>
-        entry.connection.closeSession({ sessionId }).catch(() => {
-          /* ignore — agent may not support close or session already dead */
-        })
+        Promise.race([
+          entry.connection.closeSession({ sessionId }).catch(() => {
+            /* ignore — agent may not support close or session already dead */
+          }),
+          new Promise<void>((resolve) => setTimeout(resolve, CLOSE_SESSION_TIMEOUT_MS)),
+        ])
       );
       await Promise.all(closePromises);
 
@@ -231,24 +303,25 @@ async function dispose(): Promise<void> {
       //    process, which should exit cleanly without writing to stderr.
       entry.child.stdin.end();
 
-      // 3. Wait for the child to exit (up to 2 s).
-      const closed = new Promise<void>((resolve) => {
-        const onClose = (): void => resolve();
+      // 3. Wait for the child to exit (up to GRACEFUL_CLOSE_TIMEOUT_MS).
+      const closed = new Promise<boolean>((resolve) => {
+        if (entry.child.exitCode !== null || entry.child.signalCode !== null) {
+          resolve(true);
+          return;
+        }
+        const onClose = (): void => resolve(true);
         entry.child.once("close", onClose);
         setTimeout(() => {
           entry.child.removeListener("close", onClose);
-          resolve();
-        }, 2_000);
+          resolve(false);
+        }, GRACEFUL_CLOSE_TIMEOUT_MS);
       });
-      await closed;
+      const exitedGracefully = await closed;
 
-      // 4. Force-kill if still alive.
-      if (!entry.child.killed) {
-        try {
-          entry.child.kill();
-        } catch {
-          /* ignore */
-        }
+      // 4. If the child (or its descendants) is still alive, kill the whole
+      //    process tree so MCP grandchildren are not orphaned.
+      if (!exitedGracefully && !entry.child.killed) {
+        await killProcessTree(entry.child);
       }
     })
   );

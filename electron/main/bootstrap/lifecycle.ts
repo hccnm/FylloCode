@@ -16,11 +16,13 @@ export function registerDisposable(disposable: Disposable): void {
 /**
  * Dispose every registered resource in reverse registration order.
  *
- * Each `dispose()` call is awaited with a 5-second timeout so a hung
- * resource cannot block shutdown. Exceptions are logged but do not stop
- * the iteration.
+ * Each `dispose()` call is awaited with an 8-second timeout so a hung
+ * resource cannot block shutdown. The 8s budget covers the ACP process
+ * pool's three-phase teardown (graceful close → SIGTERM grace → SIGKILL
+ * fallback) with headroom. Exceptions are logged but do not stop the
+ * iteration.
  */
-export async function disposeAll(timeoutMs = 5_000): Promise<void> {
+export async function disposeAll(timeoutMs = 8_000): Promise<void> {
   if (disposing) return;
   disposing = true;
 
