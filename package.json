@@ -1,7 +1,7 @@
 {
   "name": "FylloCode",
   "version": "0.10.1",
-  "description": "An Electron application with Vue and TypeScript",
+  "description": "A desktop app for structured agentic coding workflows",
   "main": "./out/main/index.js",
   "author": "Fio<fuyitao2018@gmail.com>",
   "homepage": "https://fyllocode.cc",
