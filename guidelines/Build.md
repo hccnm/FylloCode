@@ -21,6 +21,7 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 - `package.json`
 - `electron.vite.config.ts`
 - `electron-builder.yml`
+- `.github/workflows/release.yml`
 - `scripts/build-mcp-servers.mjs`
 - `scripts/electron-builder-before-pack.cjs`
 - `build/**`
@@ -41,6 +42,10 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 - MUST: 将应用资源放在 `resources/`，将打包图标、entitlements 等构建素材放在 `build/`，避免把运行时数据混入构建素材目录。
 - MUST: 桌面生产包瘦身规则必须配置在 `electron-builder.yml` 的通用打包范围内，覆盖 macOS、Windows、Linux；优先使用白名单包含 `out/**`、`resources/**` 与 `package.json`，再用排除规则兜底过滤源码目录、工程元数据、source map、测试、示例、benchmark、`docs/` 文档目录和临时元数据。
 - MUST: `electron-builder.yml` 必须显式声明 `electronLanguages`，默认至少保留 `en-US` 与 `zh-CN`；新增正式支持语言时同步扩展该列表。
+- MUST: 桌面发布 workflow 必须位于 `.github/workflows/release.yml`，并以 `v*.*.*` 版本 tag push 作为正式发布触发入口；workflow MUST 使用 `pnpm install --frozen-lockfile`、`pnpm build` 与 `pnpm exec electron-builder --<target> --<arch> --publish always`，不得改用不支持 pnpm 的 electron-builder action 封装。
+- MUST: release workflow 必须显式拆分 macOS x64 与 macOS arm64 产物，避免生成单个支持双架构的 macOS universal 安装包导致包体积增大；Windows 与 Linux 默认发布 x64 产物。
+- MUST: GitHub Release 发布必须通过 `electron-builder.yml` 顶层 `publish` 配置声明，provider 使用 `github`，release 类型默认使用 `draft`，由 GitHub Actions 提供 `GH_TOKEN` 和 `contents: write` 权限。
+- MUST: release workflow 在发布前校验 tag 去掉 `v` 前缀后的版本号等于 `package.json` 的 `version`；版本不一致时不得继续执行 electron-builder 发布步骤。
 - SHOULD: 在修改构建脚本、打包资源或 alias 配置后，至少执行一次 `pnpm build` 验证主/预加载/渲染三端都能完成构建。
 - SHOULD: 新增包内容过滤时先做依赖入口审计。尤其不要直接排除 `node_modules/**/src/**`，除非已确认受影响依赖的 `package.json` `main`、`module`、`exports` 和运行时资源访问都不会解析到源码目录。
 - SHOULD: 保持 `electron-builder.yml` 与 `electron.vite.config.ts` 的入口和输出职责一致，避免一个文件新增入口而另一个文件没有对应打包规则。
@@ -52,6 +57,7 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 - Good: `scripts/build-mcp-servers.mjs` 使用 esbuild 为 `mcp-servers/fyllo-specs` 与 `mcp-servers/fyllo-skills` 生成 `out/mcp-servers/<name>/index.js`。
 - Good: `electron-builder.yml` 通过 `extraResources` 将构建好的 MCP servers 带入产物。
 - Good: `electron-builder.yml` 在顶层 `files` 中只包含 `out/**`、`resources/**` 与 `package.json`，并排除源码目录、`.github` / `.vscode` / `.cursor` / `.claude` 等工程元数据、`.map`、测试目录、示例目录、benchmark、`docs/` 文档目录和临时构建元数据，使规则对 macOS、Windows、Linux 同时生效。
+- Good: 推送与 `package.json.version` 一致的 `v*.*.*` tag 后，`.github/workflows/release.yml` 分别构建 macOS x64、macOS arm64、Windows x64、Linux x64，并通过 electron-builder 创建 GitHub draft release 和上传平台产物。
 - Good: Windows NSIS 安装体验配置放在 `win` / `nsis` 范围内，并用 setup 大小、`Please wait while setup is loading` 耗时、实际安装耗时做取舍。
 - Bad: 手动修改 `out/mcp-servers/**/index.js` 修补运行时问题。
 - Bad: 在业务代码里假设生产环境直接从仓库源文件运行 `mcp-servers/**/src/index.ts`。
@@ -62,15 +68,17 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 
 - `pnpm build`
 - `pnpm build:mcp-servers`
+- 修改 release workflow 或 `publish` 配置后，静态检查 `.github/workflows/release.yml` 的 tag 触发、macOS x64 / macOS arm64 / Windows x64 / Linux x64 matrix、`permissions.contents: write`、`GH_TOKEN` 和 `pnpm exec electron-builder --<target> --<arch> --publish always`。
 - 如修改打包配置：`pnpm build:unpack`
 - 如修改平台相关配置：运行对应平台脚本，如 `pnpm build:mac`、`pnpm build:win`、`pnpm build:linux`
 - 手动检查 `out/mcp-servers/`、`dist/` 与打包资源路径是否符合文档描述。
 - 修改包内容过滤后，检查解包产物中 `app.asar.unpacked/mcp-servers/fyllo-specs/index.js` 与 `app.asar.unpacked/mcp-servers/fyllo-skills/index.js` 均存在。
 - 修改 Electron locale 后，检查解包产物的 `locales` 目录只保留配置中的 locale 文件，并至少包含 `en-US` 与 `zh-CN`。
 - 修改 Windows NSIS 压缩策略后，在 Windows 机器记录 setup 大小、`Please wait while setup is loading` 阶段耗时和实际安装阶段耗时；无法在当前机器验证时，必须在变更说明中列出待补测命令与缺口。
+- 修改 release workflow 后，真实 draft release 创建与 asset 上传必须通过推送与 `package.json.version` 匹配的 `v*.*.*` tag 在 GitHub Actions 中验证；无法在当前环境验证时，必须在变更说明中列出该缺口。
 
 ## Maintenance
 
-- 当构建入口、打包工具、MCP server bundle 方式、资源目录或生成物约定变化时，必须更新本文档。
+- 当构建入口、发布 workflow、打包工具、MCP server bundle 方式、资源目录或生成物约定变化时，必须更新本文档。
 - 当引入新的内置 MCP server、平台脚本或打包钩子时，必须补充 Sources of Truth、Rules 和 Examples。
 - 若构建脚本与 `package.json` 命令不一致，以实际脚本为准并立即修正文档。

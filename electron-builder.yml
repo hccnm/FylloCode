@@ -2,6 +2,9 @@ appId: cc.fyllocode.app
 productName: FylloCode
 directories:
   buildResources: build
+publish:
+  provider: github
+  releaseType: draft
 beforePack: ./scripts/electron-builder-before-pack.cjs
 files:
   - "out/**"
