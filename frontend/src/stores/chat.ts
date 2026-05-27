@@ -7,6 +7,7 @@ import type { MessageChunkData } from "@shared/types/ipc";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import { chatApi, type StreamError } from "@renderer/api/chat";
 import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
+import { isSystemReminderPart } from "@renderer/utils/system-reminder";
 import { useProjectStore } from "./project";
 import { useSessionStore } from "./session";
 
@@ -34,7 +35,8 @@ function buildUserMessage(sessionId: string, parts: ChatPromptPart[]): Message {
 }
 
 function getPrimaryText(parts: ChatPromptPart[]): string {
-  return parts.find((part) => part.type === "text")?.text ?? "";
+  const primary = parts.find((part) => part.type === "text" && !isSystemReminderPart(part));
+  return primary?.type === "text" ? primary.text : "";
 }
 
 function buildFallbackSessionTitle(parts: ChatPromptPart[]): string {

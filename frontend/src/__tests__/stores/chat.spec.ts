@@ -450,6 +450,90 @@ describe("useChatStore", () => {
     expect(sessionStore.activeSession?.title).toBe("hello world this message is in");
   });
 
+  it("skips system-reminder text part when building fallback session title", async () => {
+    prepareDraftConversation();
+
+    vi.mocked(chatApi.createSession).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        id: "session-2",
+        projectId: "project-1",
+        agentId: "claude-code",
+        title: "hello world this message is in",
+        status: "ended",
+        turnCount: 0,
+        tokenUsage: { used: 0, size: 0 },
+        createdAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
+        updatedAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
+        messages: [],
+      },
+    });
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage([
+      { type: "text", text: "<system-reminder>\nhealth check\n</system-reminder>" },
+      {
+        type: "text",
+        text: "  hello\n\nworld   this message is intentionally long  ",
+      },
+    ]);
+
+    expect(chatApi.createSession).toHaveBeenCalledWith({
+      projectId: "project-1",
+      title: "hello world this message is in",
+      agentId: "claude-code",
+    });
+    expect(useSessionStore().activeSession?.title).toBe("hello world this message is in");
+  });
+
+  it("falls back to DEFAULT_SESSION_TITLE when all text parts are system-reminder", async () => {
+    prepareDraftConversation();
+
+    vi.mocked(chatApi.createSession).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        id: "session-2",
+        projectId: "project-1",
+        agentId: "claude-code",
+        title: "New Session",
+        status: "ended",
+        turnCount: 0,
+        tokenUsage: { used: 0, size: 0 },
+        createdAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
+        updatedAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
+        messages: [],
+      },
+    });
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage([
+      { type: "text", text: "<system-reminder>\nonly reminder\n</system-reminder>" },
+    ]);
+
+    expect(chatApi.createSession).toHaveBeenCalledWith({
+      projectId: "project-1",
+      title: "New Session",
+      agentId: "claude-code",
+    });
+    expect(useSessionStore().activeSession?.title).toBe("New Session");
+  });
+
+  it("extracts **标题** from the first non-reminder text part", async () => {
+    prepareDraftConversation();
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage([
+      { type: "text", text: "<system-reminder>\nirrelevant\n</system-reminder>" },
+      { type: "text", text: "**标题**: 修复解析器内存泄漏\n\n更多说明" },
+    ]);
+
+    expect(chatApi.createSession).toHaveBeenCalledWith({
+      projectId: "project-1",
+      title: "修复解析器内存泄漏",
+      agentId: "claude-code",
+    });
+  });
+
   it("allows session_info_update to override the fallback title", async () => {
     const acpAgentsStore = useAcpAgentsStore();
     acpAgentsStore.registry = mockRegistry;
