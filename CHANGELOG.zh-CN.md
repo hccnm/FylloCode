@@ -4,6 +4,29 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.11.0] - 2026-05-27
+
+这个版本围绕 Chat 首次会话体验和 ACP 配置能力做了一次功能升级。Chat 现在可以在会话级别展示并设置 Agent 暴露的配置项；同时将 Agent 选择前置到 Chat 空态，补齐桌面发版 workflow，并修复若干会话标题与内置 MCP 稳定性问题。
+
+### 新增
+
+- 新增 ACP session 级 config options 的端到端支持，Chat prompt 可展示、修改并随消息提交 agent 暴露的配置项
+- 新增草稿态 session probe，在首条消息发送前预先获取当前 agent 的配置项能力，避免必须先创建正式会话才能配置参数
+- Chat 空态新增 Agent 选择体验，展示已安装 agent，并提供更多 agent 的选择弹窗
+- 新增 GitHub Actions 桌面发布 workflow，支持通过版本 tag 触发 GitHub draft release 与多平台安装包上传
+
+### 调整
+
+- Activity Bar 默认入口调整为 Chat，进入项目后优先呈现对话工作流
+- Chat prompt 底部移除原有 Agent 下拉选择，将 agent 选择职责收敛到空态与会话状态中
+- Chat 配置项读取逻辑区分正式 session 与草稿 probe，避免未就绪或失败状态下渲染过期配置
+- 发布流程增加 tag 版本与 `package.json` 版本一致性校验，降低误发版风险
+
+### 修复
+
+- 修复 fallback session title 生成时可能把 system reminder 纳入标题内容的问题
+- 修复 `fyllo-specs` 在非英文系统 locale 下解析 git 子进程输出可能不稳定的问题
+
 ## [0.10.3] - 2026-05-26
 
 这个补丁版本聚焦包体积、Windows 兼容性和本地调试能力。收紧了桌面打包范围，改进了跨平台子进程启动路径，并补上了用于排查 renderer 异常的开发入口。

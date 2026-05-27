@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.11.0] - 2026-05-27
+
+This release upgrades the first-run Chat experience and ACP configuration support. Chat can now show and set configuration options exposed by the active Agent at the session level. Agent selection has also moved into the Chat empty state, the desktop release workflow has been added, and several session-title and bundled MCP stability issues have been fixed.
+
+### Added
+
+- End-to-end support for ACP session-level config options, allowing the Chat prompt to show, edit, and submit configuration options exposed by the agent
+- Draft session probe support, preloading the current agent's configuration option capabilities before the first message so users do not need to create a full session first
+- Agent selection in the Chat empty state, showing installed agents and providing a modal for choosing additional agents
+- GitHub Actions desktop release workflow, supporting version-tag-triggered GitHub draft releases and multi-platform installer uploads
+
+### Changed
+
+- Activity Bar default entry now opens Chat first, prioritizing the conversation workflow after entering a project
+- Removed the previous Agent dropdown from the Chat prompt footer, consolidating agent selection into the empty state and session state
+- Chat config option loading now distinguishes full sessions from draft probes, avoiding stale configuration rendering while data is not ready or has failed
+- Release workflow now checks that the tag version matches `package.json`, reducing accidental release risk
+
+### Fixed
+
+- Fixed fallback session title generation so system reminders are not included in title content
+- Fixed potentially unstable git subprocess output parsing in `fyllo-specs` under non-English system locales
+
 ## [0.10.3] - 2026-05-26
 
 This patch release focuses on bundle size, Windows compatibility, and local debugging. It tightens the desktop packaging scope, improves cross-platform child process startup paths, and adds a development entry point for diagnosing renderer errors.

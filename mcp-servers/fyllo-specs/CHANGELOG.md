@@ -4,6 +4,16 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.5.1] - 2026-05-27
+
+### Changed
+
+- Runtime subprocess spawning now uses `cross-spawn`, improving command resolution consistency across platforms.
+
+### Fixed
+
+- Git subprocesses now force the `C` locale, avoiding unstable parsing on systems with non-English locale output.
+
 ## [0.5.0] - 2026-05-24
 
 ### Added
