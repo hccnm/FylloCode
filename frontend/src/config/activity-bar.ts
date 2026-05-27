@@ -10,27 +10,27 @@ export interface ActivityBarItem {
 
 export const activityBarItems: readonly ActivityBarItem[] = [
   {
-    id: "task",
-    icon: "i-lucide-list-checks",
-    label: "任务",
-    path: "/task",
-    group: "top",
-    requiresProject: true,
-    isDefault: true,
-  },
-  {
     id: "chat",
     icon: "i-lucide-message-circle-more",
     label: "对话",
     path: "/chat",
     group: "top",
     requiresProject: true,
+    isDefault: true,
   },
   {
     id: "proposal",
     icon: "i-lucide-file-pen",
     label: "提案",
     path: "/proposal",
+    group: "top",
+    requiresProject: true,
+  },
+  {
+    id: "task",
+    icon: "i-lucide-list-checks",
+    label: "任务",
+    path: "/task",
     group: "top",
     requiresProject: true,
   },

@@ -87,7 +87,7 @@ async function handleDelete(): Promise<void> {
     "
   >
     <div
-      class="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center text-muted"
+      class="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center text-muted bg-white rounded-md"
       data-test="session-media"
     >
       <span

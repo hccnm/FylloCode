@@ -159,11 +159,6 @@ function mountPanel(): VueWrapper {
         UChatPromptSubmit: promptSubmitStub,
         ChatPromptSubmit: promptSubmitStub,
         SlashCommand: slashCommandStub,
-        ChatAgentSelect: {
-          props: ["modelValue"],
-          emits: ["update:modelValue"],
-          template: '<div data-test="agent-select">{{ modelValue ?? "none" }}</div>',
-        },
         AttachmentList: {
           props: ["attachments"],
           emits: ["remove"],
@@ -336,15 +331,8 @@ describe("ChatPromptPanel", () => {
     expect(wrapper.find('[data-test="usage-ring"]').exists()).toBe(true);
   });
 
-  it("hides the agent selector when the agent is locked", async () => {
+  it("does not render ChatAgentSelect in footer", () => {
     const wrapper = mountPanel();
-    expect(wrapper.find('[data-test="agent-select"]').exists()).toBe(true);
-    expect(wrapper.get('[data-test="agent-select"]').text()).toContain("claude-code");
-
-    const session = makeSession();
-    session.messages = [{} as Session["messages"][number]];
-    activeSessionRef.value = session;
-    await wrapper.vm.$nextTick();
     expect(wrapper.find('[data-test="agent-select"]').exists()).toBe(false);
   });
 

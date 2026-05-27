@@ -31,62 +31,32 @@
 - **WHEN** chat store 初始化
 - **THEN** `currentAgent` 为 `ChatAgent` 类型，包含 `id`、`name`、`acpAgentId` 字段
 
-### Requirement: ChatAgentSelect 展示已安装 ACP agent 列表
-
-系统 SHALL 将 `AgentSelect` 组件重命名为 `ChatAgentSelect`，数据源改为 `useAcpAgentsStore` 中 `statuses[id].installed === true` 的 agent 列表，不再使用硬编码列表。ACP agent 数据 SHALL 在 app 启动后的 bootstrap 阶段预热，而不是依赖 settings 页面触发首次加载。
-
-#### Scenario: 展示已安装 agent
-
-- **WHEN** 用户打开 ChatAgentSelect 下拉菜单
-- **THEN** 列表只显示 `statuses[id].installed === true` 的 ACP agent
-- **AND** 每个选项显示 agent 名称和图标（来自 `icons[id]`，无图标时显示默认图标）
-
-#### Scenario: 无已安装 agent 时的空状态
-
-- **WHEN** 没有任何 ACP agent 处于已安装状态
-- **THEN** 下拉菜单显示空状态提示，引导用户前往设置安装 agent
-
-#### Scenario: 进入项目后直接看到已安装 agent
-
-- **WHEN** 用户启动应用并进入某个 project，且 ACP agent bootstrap 已完成
-- **THEN** ChatAgentSelect 直接显示已安装 ACP agent 列表
-- **AND** 不要求用户先访问 settings 页面
-
-#### Scenario: bootstrap 未完成时短暂空态
-
-- **WHEN** ChatAgentSelect 首次渲染时 ACP agent bootstrap 尚未完成
-- **THEN** 组件允许短暂显示空态
-- **AND** bootstrap 完成后自动更新为已安装 agent 列表
-
 ### Requirement: Agent 切换在非流式状态下生效
 
-系统 SHALL 在当前 session 的 `messages.length === 0` 时允许切换 agent。选择器的数据来源仍为已安装 ACP agent 列表，但其绑定目标取决于当前是否存在 active session。
+系统 SHALL 在当前 session 的 `messages.length === 0` 时允许切换 agent。选择器的数据来源为已安装 ACP agent 列表，绑定目标取决于当前是否存在 active session。
 
-#### Scenario: 草稿态下选择器绑定 draft agent
+agent 选择入口 SHALL 为 `ChatEmptyAgentPicker` 中的 `InstalledAgentTile`（即点即生效）和 `AgentPickerModal`（两步确认）。`ChatAgentSelect` 下拉选择器不再作为 agent 切换入口。
+
+#### Scenario: 草稿态下点击 InstalledAgentTile 绑定 draft agent
 
 - **WHEN** 用户点击"新建 Session"进入草稿态，且当前没有任何 active session
-- **THEN** `ChatAgentSelect` 仍处于可交互状态
-- **AND** 其值绑定到响应式的 `draftAgentId`，而不是 `activeSession.agentId`
+- **THEN** `ChatEmptyAgentPicker` 中的 `InstalledAgentTile` 处于可交互状态
+- **AND** 点击后调用 `sessionStore.setDraftAgent(agentId)`，`draftAgentId` 立即更新
 
 #### Scenario: 草稿态首条消息继承当前所选 agent
 
 - **WHEN** 用户在草稿态发送第一条消息
-- **THEN** 新创建的 session 的 `agentId` 等于当时选择器中的 `draftAgentId`
+- **THEN** 新创建的 session 的 `agentId` 等于当时的 `draftAgentId`
 
-#### Scenario: 切换到已有 session 时选择器跟随 session
+#### Scenario: 切换到已有 session 时选中态跟随 session
 
-- **WHEN** 用户切换到某个已有 session
-- **THEN** `ChatAgentSelect` 显示该 session 持久化的 `agentId`
+- **WHEN** 用户切换到某个已有 session（`messages.length === 0`）
+- **THEN** `ChatEmptyAgentPicker` 中对应 agent 的 `InstalledAgentTile` 显示选中态
 
-#### Scenario: 会话开始后禁止切换 agent
+#### Scenario: 会话开始后不再显示空态 picker
 
 - **WHEN** 当前 active session 的 `messages.length > 0`
-- **THEN** `ChatAgentSelect` 处于禁用状态，不可切换
-
-#### Scenario: 流式进行中保持禁用
-
-- **WHEN** 当前 session 正在流式输出（`chatStatus === "streaming"`）
-- **THEN** `ChatAgentSelect` 处于禁用状态（与"会话开始后禁止切换"一致）
+- **THEN** `ChatEmptyAgentPicker` 不渲染，`ChatMessageList` 渲染
 
 ### Requirement: 草稿态默认 agent 不得硬编码
 

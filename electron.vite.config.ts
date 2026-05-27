@@ -110,6 +110,14 @@ export default defineConfig(({ command }) => ({
           modal: {
             slots: {
               footer: "justify-end gap-2",
+              overlay: "fixed inset-0 backdrop-blur-sm",
+            },
+            variants: {
+              overlay: {
+                true: {
+                  overlay: "bg-slate-900/40",
+                },
+              },
             },
           },
         },

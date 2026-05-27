@@ -437,9 +437,11 @@ export const useSessionStore = defineStore("session", () => {
   // probe lifecycle) live here so future additions stay in one place.
   // ChatPromptPanel.vue intentionally has no agent watcher of its own.
   watch(
-    () => effectiveAgentId.value,
-    (nextAgentId, previousAgentId) => {
-      if (nextAgentId) {
+    () => [effectiveAgentId.value, useProjectStore().currentProject?.id ?? null] as const,
+    ([nextAgentId, projectId], oldValues) => {
+      const previousAgentId = oldValues?.[0] ?? null;
+
+      if (nextAgentId && nextAgentId !== previousAgentId) {
         void acpAgentsStore.refreshCapabilities(nextAgentId).catch(() => {
           // Capability refresh is best-effort; chat prompt state must keep working if it fails.
         });
@@ -459,12 +461,11 @@ export const useSessionStore = defineStore("session", () => {
         ensureDraftProbeTimer = null;
       }
 
-      if (!isDraft || !nextAgentId) {
+      if (!isDraft || !nextAgentId || !projectId) {
         return;
       }
 
-      const projectId = useProjectStore().currentProject?.id;
-      if (!projectId) {
+      if (draftProbeByAgent.value.has(nextAgentId)) {
         return;
       }
 

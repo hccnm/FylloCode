@@ -14,7 +14,6 @@ import {
   type ChatPromptAttachment,
 } from "@renderer/utils/chat-prompt-attachment";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
-import ChatAgentSelect from "../ChatAgentSelect.vue";
 import AttachmentList from "./AttachmentList.vue";
 import ConfigOptionsBar from "./ConfigOptionsBar.vue";
 import ContextUsageRing from "./ContextUsageRing.vue";
@@ -29,27 +28,10 @@ const toast = useToast();
 const { chatStatus } = storeToRefs(chatStore);
 const { activeSession, draftAgentId } = storeToRefs(sessionStore);
 
-const agent = computed<string | undefined>({
-  // Read-only mirror; the single watcher in stores/session.ts owns all
-  // side-effects of an agent switch (capability refresh + draft probe).
-  get: () => activeSession.value?.agentId ?? draftAgentId.value ?? undefined,
-  set: (agentId) => {
-    if (!agentId) {
-      return;
-    }
+const agent = computed<string | undefined>(
+  () => activeSession.value?.agentId ?? draftAgentId.value ?? undefined
+);
 
-    if (activeSession.value) {
-      void sessionStore.setSessionAgent(agentId).catch((error: unknown) => {
-        console.error("Failed to update session agent:", error);
-      });
-      return;
-    }
-
-    sessionStore.setDraftAgent(agentId);
-  },
-});
-
-const isAgentLocked = computed(() => (activeSession.value?.messages.length ?? 0) > 0);
 const availableCommands = computed(() => activeSession.value?.availableCommands ?? []);
 const hasAvailableCommands = computed(() => availableCommands.value.length > 0);
 const attachments = ref<ChatPromptAttachment[]>([]);
@@ -293,7 +275,6 @@ onBeforeUnmount(() => {
               @button-trigger="handleSlashButtonClick"
               @select="handleCommandSelect"
             />
-            <ChatAgentSelect v-if="!isAgentLocked" v-model="agent" />
             <ConfigOptionsBar />
           </div>
 
