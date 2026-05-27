@@ -55,6 +55,7 @@ function mountContainer(): VueWrapper {
             },
           },
         },
+        ChatEmptyAgentPicker: { template: '<div data-test="empty-agent-picker"></div>' },
         ChatPromptPanel: { template: '<div data-test="prompt-panel"></div>' },
       },
     },
@@ -85,10 +86,11 @@ describe("ChatContainer", () => {
     streamErrorRef.value = null;
   });
 
-  it("passes active session state to the message list and renders the prompt panel", async () => {
+  it("renders the empty agent picker until the active session has messages", async () => {
     const wrapper = mountContainer();
 
-    expect(wrapper.get('[data-test="message-list"]').text()).toBe("0|ready|chat");
+    expect(wrapper.find('[data-test="empty-agent-picker"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="message-list"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="prompt-panel"]').exists()).toBe(true);
 
     const session = makeSession([{ name: "review", description: "Review code" }]);
@@ -96,6 +98,7 @@ describe("ChatContainer", () => {
     activeSessionRef.value = session;
     await wrapper.vm.$nextTick();
 
+    expect(wrapper.find('[data-test="empty-agent-picker"]').exists()).toBe(false);
     expect(wrapper.get('[data-test="message-list"]').text()).toBe("1|ready|chat");
     expect(wrapper.find('[data-test="prompt-panel"]').exists()).toBe(true);
   });

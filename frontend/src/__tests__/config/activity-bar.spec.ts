@@ -27,7 +27,7 @@ describe("activity-bar registry", () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
-  it("default item path is /task", () => {
-    expect(defaultActivityBarItem.path).toBe("/task");
+  it("default item path is /chat", () => {
+    expect(defaultActivityBarItem.path).toBe("/chat");
   });
 });
