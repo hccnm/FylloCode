@@ -146,6 +146,13 @@ export async function runGit(
     const child = spawn("git", args, {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        LC_ALL: "C",
+        LANG: "C",
+        LANGUAGE: "C",
+        GIT_TERMINAL_PROMPT: "0",
+      },
     });
 
     let stdout = "";
