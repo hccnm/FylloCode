@@ -37,6 +37,7 @@ keywords: [testing, vitest, happy-dom, mocks, verification]
 - MUST: 在 main 测试中通过 `electron/main/__tests__/setup.ts` mock `electron`、`@electron-toolkit/utils` 和 `electron-log/main`，避免依赖真实 Electron 进程。
 - MUST: 优先 mock `frontend/src/api/*` 这一层，而不是在组件/store 测试里直接 mock 底层 IPC 细节。
 - MUST: 对涉及文件系统写入的主进程测试使用可隔离的临时目录，不要硬编码 `/private/tmp`、`/var` 等环境敏感路径。
+- MUST: 让 `vitest.config.mts` 中的 aggregate coverage threshold 保持非零；当前最低线基于实测覆盖率设置为 statements 50、branches 40、functions 50、lines 50，`pnpm test:coverage` 低于任一阈值必须失败。
 - MUST: 让改动规模与验证规模匹配；修改主进程 IPC、共享类型、storage、bootstrap 等基础设施时，不能只跑单个组件测试。
 - SHOULD: 为 store、service、domain、ipc kit 这类逻辑集中层提供直接单元测试，而不是只通过高层 UI 间接覆盖。
 - SHOULD: 让新增的 `@nuxt/ui` 组件 stub 保留关键交互行为；纯展示壳组件可直接 stub 为 `true`。
@@ -57,7 +58,7 @@ keywords: [testing, vitest, happy-dom, mocks, verification]
 - 主进程 service/domain/infra/ipc/preload 改动：`pnpm vitest run electron/main/__tests__/**/*.{test,spec}.ts`
 - 共享类型、共享 schema、错误码、MCP server 改动：`pnpm vitest run electron/main/__tests__/**/*.{test,spec}.ts` 和 `pnpm vitest run shared/__tests__/**/*.{test,spec}.ts`
 - 全量提交前的标准检查：`pnpm test`
-- 覆盖率检查：`pnpm test:coverage`
+- 覆盖率检查：`pnpm test:coverage`。该命令生成 text/html coverage 报告，并按 `vitest.config.mts` 的 aggregate threshold 阻断低覆盖率提交；调整阈值前应先记录当前仓库实测 coverage，避免把阈值设到当前测试无法通过的水平。
 
 ## Maintenance
 

@@ -4,8 +4,12 @@ import eslintConfigPrettier from "@electron-toolkit/eslint-config-prettier";
 import eslintPluginVue from "eslint-plugin-vue";
 import vueParser from "vue-eslint-parser";
 import { createRequire } from "module";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
+const tsconfigRootDir = dirname(fileURLToPath(import.meta.url));
+const typeCheckedSourceFiles = ["**/*.{ts,mts,tsx,vue}"];
 
 let autoImportGlobals = {};
 try {
@@ -15,8 +19,55 @@ try {
 }
 
 export default defineConfig(
-  { ignores: ["**/node_modules", "**/dist", "**/out", "**/data"] },
-  tseslint.configs.recommended,
+  {
+    ignores: [
+      "**/node_modules",
+      "**/dist",
+      "**/out",
+      "**/data",
+      "frontend/.eslintrc-auto-import.json",
+      "frontend/auto-imports.d.ts",
+      "frontend/components.d.ts",
+      "frontend/src/typed-router.d.ts",
+    ],
+  },
+  {
+    plugins: {
+      "@typescript-eslint": tseslint.plugin,
+    },
+  },
+  ...tseslint.configs.recommendedTypeChecked.map((config) => ({
+    ...config,
+    files: typeCheckedSourceFiles,
+  })),
+  {
+    files: typeCheckedSourceFiles,
+    languageOptions: {
+      parserOptions: {
+        projectService: {
+          allowDefaultProject: ["vitest.config.mts"],
+        },
+        tsconfigRootDir,
+      },
+    },
+  },
+  {
+    files: typeCheckedSourceFiles,
+    rules: {
+      "@typescript-eslint/no-base-to-string": "off",
+      "@typescript-eslint/no-floating-promises": "off",
+      "@typescript-eslint/no-redundant-type-constituents": "off",
+      "@typescript-eslint/no-unnecessary-type-assertion": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/only-throw-error": "off",
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/unbound-method": "off",
+    },
+  },
   eslintPluginVue.configs["flat/recommended"],
   {
     files: ["**/*.vue"],
@@ -28,6 +79,10 @@ export default defineConfig(
         },
         extraFileExtensions: [".vue"],
         parser: tseslint.parser,
+        projectService: {
+          allowDefaultProject: ["vitest.config.mts"],
+        },
+        tsconfigRootDir,
       },
       globals: autoImportGlobals,
     },

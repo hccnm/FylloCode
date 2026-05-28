@@ -64,6 +64,12 @@ export default defineConfig({
     coverage: {
       reporter: ["text", "html"],
       reportsDirectory: "./coverage",
+      thresholds: {
+        statements: 50,
+        branches: 40,
+        functions: 50,
+        lines: 50,
+      },
       include: [
         "frontend/src",
         "electron/main",

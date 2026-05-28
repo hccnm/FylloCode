@@ -36,6 +36,8 @@ keywords: [workflow, openspec, commands, pre-commit, review]
 - MUST: 使用 `pnpm` 命令驱动仓库脚本，不引入额外包管理器。
 - MUST: 尊重 pre-commit 流程：提交前至少让会被 `lint-staged` 处理的文件能够通过 Prettier/ESLint。
 - SHOULD: 根据改动范围选择最小但充分的验证命令；大多数代码改动至少应跑 `pnpm lint` 与相关测试。
+- SHOULD: 将 `pnpm lint` 视为类型感知静态检查入口；它会对 `**/*.{ts,mts,tsx,vue}` 源文件加载 TypeScript project service，因此 lint 失败可能来自 tsconfig 覆盖范围或类型信息解析问题。
+- SHOULD: 将 `pnpm test:coverage` 视为带 fail-under 阈值的覆盖率检查入口；当前 aggregate 阈值为 50/40/50/50，低于任一 statements、branches、functions、lines 指标时命令会失败。
 - SHOULD: 在修改 guideline 时同步检查 `AGENTS.md` 索引是否仍然准确。
 - MAY: 将 ACP、第三方集成协议、历史示例文档放在 `guidelines/reference/`，但这些文档不应替代项目级规则来源。
 

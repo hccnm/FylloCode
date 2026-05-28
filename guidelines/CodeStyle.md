@@ -33,6 +33,7 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 
 - MUST: 使用 pnpm 作为包管理器，使用 Prettier 和 ESLint 作为仓库默认格式化与静态检查工具。
 - MUST: 遵守 `.prettierrc` 与 `.editorconfig` 的统一格式：2 空格缩进、LF、UTF-8、保留分号、双引号、100 列行宽、对象括号内空格、函数参数允许 ES5 trailing comma。
+- MUST: 让 `eslint.config.mjs` 对 `**/*.{ts,mts,tsx,vue}` 源文件启用 TypeScript type-checked 规则集，并通过 project service 接通仓库 tsconfig 上下文；不要把生成文件或构建产物纳入类型感知 lint 来凑检查范围。
 - MUST: 让 `simple-git-hooks` + `lint-staged` 继续作为 pre-commit 防线；任何新增文件类型若需要自动格式化，应先更新仓库配置再写入 guideline。
 - MUST: 在 Vue 文件中使用 `<script setup lang="ts">`；缺少 `lang="ts"` 会被 ESLint 拦截。
 - MUST: 使用 kebab-case 命名目录和非组件 TypeScript 文件，使用 PascalCase 命名 Vue 组件文件。
@@ -59,6 +60,7 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 - `pnpm lint`
 - `pnpm format`
 - `pnpm typecheck`
+- `pnpm lint` 必须能够在 TypeScript/Vue 源文件的类型感知规则下通过；若修改 `eslint.config.mjs`、tsconfig 或自动生成类型声明范围，应优先运行此命令确认 project service 仍可解析目标文件。
 - 若改动涉及 Vue/TS 规范、自动导入 globals 或路由生成文件，运行 `pnpm dev` 以验证生成物链路正常。
 - 提交前检查是否误修改了生成文件或构建产物。
 
