@@ -12,11 +12,11 @@ const emit = defineEmits<{
 <template>
   <button
     type="button"
-    class="group flex aspect-square flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition-colors"
+    class="group flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition-colors"
     :class="
       variant === 'promo'
-        ? 'border-primary/40 bg-primary/5 hover:bg-primary/10'
-        : 'border-default hover:border-primary/40 hover:bg-elevated/40'
+        ? 'min-h-36 w-full border-primary/40 bg-primary/5 hover:bg-primary/10'
+        : 'aspect-square border-default hover:border-primary/40 hover:bg-elevated/40'
     "
     @click="emit('click')"
   >
