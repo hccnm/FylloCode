@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { AppChannels } from "@shared/types/channels";
@@ -78,5 +78,14 @@ describe("registerAppHandlers", () => {
       expect.stringContaining("[renderer:"),
       expect.anything()
     );
+  });
+
+  it("returns the current userData path", async () => {
+    vi.mocked(app.getPath).mockReturnValue("/tmp/fyllocode-test");
+
+    const result = await handler(AppChannels.getUserDataPath)({ sender: {} }, undefined);
+
+    expect(result).toEqual({ ok: true, data: "/tmp/fyllocode-test" });
+    expect(app.getPath).toHaveBeenCalledWith("userData");
   });
 });

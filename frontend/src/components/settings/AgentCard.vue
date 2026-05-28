@@ -1,21 +1,31 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { AcpAgentEntry, AcpAgentStatus, AcpInstallProgress } from "@shared/types/acp-agent";
+import {
+  stripPackageVersion,
+  type AcpAgentEntry,
+  type AcpAgentStatus,
+  type AcpInstallMethod,
+  type AcpInstallProgress,
+  type AcpUninstallProgress,
+} from "@shared/types/acp-agent";
 
 const props = defineProps<{
   agent: AcpAgentEntry;
   icon?: string;
   agentStatus?: AcpAgentStatus;
-  installProgress?: AcpInstallProgress;
+  installProgress?: AcpInstallProgress | AcpUninstallProgress;
+  userDataPath?: string;
   isInstalling?: boolean;
   actionDisabled?: boolean;
 }>();
 
 const emit = defineEmits<{
   install: [agentId: string];
+  uninstall: [agentId: string];
 }>();
 
 const showTakeoverModal = ref(false);
+const showUninstallModal = ref(false);
 
 const canUpdate = computed(() => props.agentStatus?.installed && props.agentStatus.updateAvailable);
 const isUserManagedUpdate = computed(
@@ -25,6 +35,53 @@ const hasError = computed(() => props.installProgress?.status === "error");
 const progressMessage = computed(() => props.installProgress?.message ?? "正在处理...");
 const detectedVersion = computed(() => props.agentStatus?.detectedVersion ?? props.agent.version);
 const versionLabel = computed(() => `v${props.agent.version}`);
+const resolvedInstallMethod = computed<AcpInstallMethod>(() => {
+  if (props.agentStatus?.installMethod) {
+    return props.agentStatus.installMethod;
+  }
+  if (props.agent.distribution.npx) {
+    return "npx";
+  }
+  if (props.agent.distribution.uvx) {
+    return "uvx";
+  }
+  return "binary";
+});
+const uninstallCommandLabel = computed(() =>
+  resolvedInstallMethod.value === "binary" ? "将会删除" : "将会执行"
+);
+const uninstallCommandText = computed(() => {
+  if (resolvedInstallMethod.value === "npx") {
+    const pkg = props.agent.distribution.npx?.package ?? props.agent.id;
+    return `npm uninstall -g ${stripPackageVersion(pkg)}`;
+  }
+  if (resolvedInstallMethod.value === "uvx") {
+    const pkg = props.agent.distribution.uvx?.package ?? props.agent.id;
+    return `uv tool uninstall ${stripPackageVersion(pkg)}`;
+  }
+
+  return `${props.userDataPath ?? ""}/acp/bin/${props.agent.id}`;
+});
+const uninstallLeadText = computed(() =>
+  props.agentStatus?.managedBy === "user"
+    ? "该 Agent 由你自行安装，是否同意 FylloCode 代为卸载？"
+    : "该 Agent 由 FylloCode 安装，确定卸载吗？"
+);
+const uninstallFootnote = computed(() => {
+  if (props.agentStatus?.managedBy !== "user") {
+    return "卸载完成后将清除本地安装记录。";
+  }
+
+  return resolvedInstallMethod.value === "binary"
+    ? "此操作不可撤销。"
+    : "此操作会修改你的全局环境，不可撤销。";
+});
+const uninstallButtonLabel = computed(() =>
+  props.agentStatus?.managedBy === "user" ? "同意并卸载" : "卸载"
+);
+const uninstallButtonColor = computed(() =>
+  props.agentStatus?.managedBy === "user" ? "warning" : "error"
+);
 
 function requestInstall(): void {
   if (isUserManagedUpdate.value) {
@@ -38,6 +95,15 @@ function requestInstall(): void {
 function confirmTakeoverInstall(): void {
   showTakeoverModal.value = false;
   emit("install", props.agent.id);
+}
+
+function requestUninstall(): void {
+  showUninstallModal.value = true;
+}
+
+function confirmUninstall(): void {
+  showUninstallModal.value = false;
+  emit("uninstall", props.agent.id);
 }
 </script>
 
@@ -80,22 +146,45 @@ function confirmTakeoverInstall(): void {
           </div>
 
           <template v-else-if="canUpdate">
-            <UButton
-              size="xs"
-              color="primary"
-              :disabled="actionDisabled"
-              :title="actionDisabled ? '其他 Agent 正在安装中' : undefined"
-              @click="requestInstall"
-            >
-              <UIcon name="i-lucide-refresh-cw" class="w-3 h-3 mr-1" />
-              更新
-            </UButton>
+            <div class="flex items-center gap-2">
+              <UButton
+                size="xs"
+                color="primary"
+                :disabled="actionDisabled"
+                :title="actionDisabled ? '其他 Agent 正在处理中' : undefined"
+                @click="requestInstall"
+              >
+                <UIcon name="i-lucide-refresh-cw" class="w-3 h-3 mr-1" />
+                更新
+              </UButton>
+              <UButton
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                icon="i-lucide-trash-2"
+                :disabled="actionDisabled"
+                :title="actionDisabled ? '其他 Agent 正在处理中' : undefined"
+                @click="requestUninstall"
+              >
+                卸载
+              </UButton>
+            </div>
             <span class="text-xs text-muted">v{{ detectedVersion }}</span>
           </template>
 
           <template v-else-if="agentStatus?.installed">
             <UBadge color="success" variant="soft">已安装</UBadge>
-            <span class="text-xs text-muted">最新版本</span>
+            <UButton
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              icon="i-lucide-trash-2"
+              :disabled="actionDisabled"
+              :title="actionDisabled ? '其他 Agent 正在处理中' : undefined"
+              @click="requestUninstall"
+            >
+              卸载
+            </UButton>
           </template>
 
           <UButton
@@ -104,7 +193,7 @@ function confirmTakeoverInstall(): void {
             variant="outline"
             color="neutral"
             :disabled="actionDisabled"
-            :title="actionDisabled ? '其他 Agent 正在安装中' : undefined"
+            :title="actionDisabled ? '其他 Agent 正在处理中' : undefined"
             class="shrink-0"
             @click="requestInstall"
           >
@@ -137,6 +226,41 @@ function confirmTakeoverInstall(): void {
         <div class="flex justify-end gap-2 pt-2">
           <UButton variant="ghost" color="neutral" @click="showTakeoverModal = false">取消</UButton>
           <UButton color="warning" @click="confirmTakeoverInstall">确认更新</UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <UModal v-model:open="showUninstallModal">
+    <template #content>
+      <div class="p-6 space-y-4">
+        <div class="flex items-start gap-3">
+          <div
+            class="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center shrink-0"
+          >
+            <UIcon name="i-lucide-triangle-alert" class="w-5 h-5 text-warning" />
+          </div>
+          <div class="flex-1 min-w-0 space-y-3">
+            <h3 class="text-base font-semibold text-highlighted">卸载 {{ agent.name }}？</h3>
+            <p class="text-sm text-muted">{{ uninstallLeadText }}</p>
+            <p class="text-sm text-muted">{{ uninstallCommandLabel }}</p>
+            <div
+              class="mt-3 space-y-1.5 text-sm flex flex-col justify-start rounded-md bg-muted px-4 py-2"
+            >
+              <code class="font-mono break-all whitespace-pre-wrap leading-relaxed">
+                {{ uninstallCommandText }}
+              </code>
+            </div>
+            <p class="text-sm text-muted mt-3">{{ uninstallFootnote }}</p>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <UButton variant="ghost" color="neutral" @click="showUninstallModal = false">
+            取消
+          </UButton>
+          <UButton :color="uninstallButtonColor" @click="confirmUninstall">
+            {{ uninstallButtonLabel }}
+          </UButton>
         </div>
       </div>
     </template>

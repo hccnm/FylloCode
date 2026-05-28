@@ -91,3 +91,13 @@ export async function getCachedPromptCapabilities(
     capturedAgentVersion: cached.capturedAgentVersion,
   };
 }
+
+export async function removeAgentCapabilities(agentId: string): Promise<void> {
+  const agents = await loadCache();
+  delete agents[agentId];
+
+  await writeCacheDocument({
+    version: CACHE_VERSION,
+    agents,
+  });
+}

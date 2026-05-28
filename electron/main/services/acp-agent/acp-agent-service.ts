@@ -5,14 +5,22 @@ import {
   type AcpInstallProgress,
   type AcpPromptCapabilities,
   type AcpRegistry,
+  type AcpUninstallProgress,
 } from "@shared/types/acp-agent";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import { detectAgentStatuses, readInstalledRecords } from "@main/domain/acp/detector";
+import {
+  detectAgentStatuses,
+  readInstalledRecords,
+  removeInstalledRecord,
+} from "@main/domain/acp/detector";
 import { getAgentIcons } from "@main/infra/storage/acp-icon-cache";
-import { installAgent } from "@main/services/acp-agent/installer";
+import { installAgent, uninstallAgent } from "@main/services/acp-agent/installer";
 import { getRegistry, refreshRegistry } from "@main/infra/storage/acp-registry-cache";
 import { getOrStartProcess } from "@main/infra/process/acp-process-pool";
-import { getCachedPromptCapabilities } from "@main/infra/storage/agent-capability-store";
+import {
+  getCachedPromptCapabilities,
+  removeAgentCapabilities,
+} from "@main/infra/storage/agent-capability-store";
 import { ipcError } from "@main/ipc/_kit/errors";
 import logger from "@main/infra/logger";
 
@@ -25,6 +33,12 @@ export function broadcastRegistryUpdated(registry: AcpRegistry): void {
 export function broadcastInstallProgress(progress: AcpInstallProgress): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(AcpAgentChannels.installProgress, progress);
+  }
+}
+
+export function broadcastUninstallProgress(progress: AcpUninstallProgress): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(AcpAgentChannels.uninstallProgress, progress);
   }
 }
 
@@ -53,6 +67,24 @@ export async function installAgentById(agentId: string): Promise<void> {
     throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `未知 Agent: ${agentId}`);
   }
   await installAgent(agent, broadcastInstallProgress);
+}
+
+export async function uninstallAgentById(agentId: string): Promise<void> {
+  const registry = await loadAgentRegistry();
+  const agent = registry.agents.find((item) => item.id === agentId);
+  if (!agent) {
+    throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `未知 Agent: ${agentId}`);
+  }
+
+  const records = await readInstalledRecords();
+  const record = records[agentId];
+  if (!record) {
+    throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `Agent ${agentId} is not installed`);
+  }
+
+  await uninstallAgent(agent, record.installMethod, broadcastUninstallProgress);
+  await removeInstalledRecord(agentId);
+  await removeAgentCapabilities(agentId);
 }
 
 export async function ensureAgent(agentId: string): Promise<{

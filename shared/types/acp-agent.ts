@@ -62,6 +62,7 @@ export interface AcpAgentStatus {
   installed: boolean;
   detectedVersion?: string;
   managedBy: AcpManagedBy | null;
+  installMethod?: AcpInstallMethod;
   updateAvailable: boolean;
   latestVersion?: string;
 }
@@ -84,8 +85,20 @@ export function normalizePromptCapabilities(input?: {
   };
 }
 
+// distribution.package 可能携带版本/标签后缀（如 @scope/pkg@1.2.3、pkg@latest），
+// npm/uv 的 list 与 uninstall 命令要求裸包名；UI 展示也使用裸包名。
+export function stripPackageVersion(packageSpec: string): string {
+  return packageSpec.replace(/@[\d].*$/, "").replace(/(@[^@/]+)@.*$/, "$1");
+}
+
 export interface AcpInstallProgress {
   agentId: string;
   status: "downloading" | "installing" | "done" | "error";
+  message?: string;
+}
+
+export interface AcpUninstallProgress {
+  agentId: string;
+  status: "uninstalling" | "done" | "error";
   message?: string;
 }

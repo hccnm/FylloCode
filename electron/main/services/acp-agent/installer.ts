@@ -3,11 +3,13 @@ import { basename, dirname, extname, join, relative } from "path";
 import { tmpdir } from "os";
 import { net } from "electron";
 import spawn from "cross-spawn";
-import type {
-  AcpAgentEntry,
-  AcpInstallMethod,
-  AcpInstallProgress,
-  AcpInstalledRecord,
+import {
+  stripPackageVersion,
+  type AcpAgentEntry,
+  type AcpInstallMethod,
+  type AcpInstallProgress,
+  type AcpInstalledRecord,
+  type AcpUninstallProgress,
 } from "@shared/types/acp-agent";
 import { getDataSubPath } from "@main/infra/paths";
 import {
@@ -20,7 +22,8 @@ import {
   writeInstalledRecords,
 } from "@main/domain/acp/detector";
 
-type ProgressHandler = (progress: AcpInstallProgress) => void;
+type InstallProgressHandler = (progress: AcpInstallProgress) => void;
+type UninstallProgressHandler = (progress: AcpUninstallProgress) => void;
 
 interface CommandExecutionResult {
   stdout: string;
@@ -28,9 +31,13 @@ interface CommandExecutionResult {
   code: number | null;
 }
 
-let activeInstallAgentId: string | null = null;
+let activeMutationAgentId: string | null = null;
 
-function summarizeCommandOutput(stdout: string, stderr: string): string {
+function summarizeCommandOutput(
+  stdout: string,
+  stderr: string,
+  fallback = "安装失败，请重试"
+): string {
   const summary = `${stderr}\n${stdout}`
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -38,7 +45,7 @@ function summarizeCommandOutput(stdout: string, stderr: string): string {
     .slice(0, 3)
     .join(" ");
 
-  return summary || "安装失败，请重试";
+  return summary || fallback;
 }
 
 async function runStreamingCommand(
@@ -103,7 +110,7 @@ async function finalizeInstallRecord(
 
 async function installNpx(
   agent: AcpAgentEntry,
-  onProgress: ProgressHandler
+  onProgress: InstallProgressHandler
 ): Promise<AcpInstalledRecord> {
   const distribution = agent.distribution.npx;
   if (!distribution) {
@@ -130,7 +137,7 @@ async function installNpx(
 
 async function installUvx(
   agent: AcpAgentEntry,
-  onProgress: ProgressHandler
+  onProgress: InstallProgressHandler
 ): Promise<AcpInstalledRecord> {
   const distribution = agent.distribution.uvx;
   if (!distribution) {
@@ -153,6 +160,62 @@ async function installUvx(
   }
 
   return finalizeInstallRecord(agent, "uvx");
+}
+
+async function uninstallNpx(
+  agent: AcpAgentEntry,
+  onProgress: UninstallProgressHandler
+): Promise<void> {
+  const distribution = agent.distribution.npx;
+  if (!distribution) {
+    throw createAgentError("INVALID_DISTRIBUTION", "Agent 缺少 npx 安装信息");
+  }
+
+  const npmPath = await findCommandPath("npm");
+  if (!npmPath) {
+    throw createAgentError("ENV_MISSING", "需要先安装 Node.js");
+  }
+
+  onProgress({ agentId: agent.id, status: "uninstalling", message: "正在卸载..." });
+  const result = await runStreamingCommand(
+    npmPath,
+    ["uninstall", "-g", stripPackageVersion(distribution.package)],
+    distribution.env
+  );
+  if (result.code !== 0) {
+    throw createAgentError(
+      "UNINSTALL_FAILED",
+      summarizeCommandOutput(result.stdout, result.stderr, "卸载失败，请重试")
+    );
+  }
+}
+
+async function uninstallUvx(
+  agent: AcpAgentEntry,
+  onProgress: UninstallProgressHandler
+): Promise<void> {
+  const distribution = agent.distribution.uvx;
+  if (!distribution) {
+    throw createAgentError("INVALID_DISTRIBUTION", "Agent 缺少 uvx 安装信息");
+  }
+
+  const uvPath = await findCommandPath("uv");
+  if (!uvPath) {
+    throw createAgentError("ENV_MISSING", "需要先安装 uv");
+  }
+
+  onProgress({ agentId: agent.id, status: "uninstalling", message: "正在卸载..." });
+  const result = await runStreamingCommand(
+    uvPath,
+    ["tool", "uninstall", stripPackageVersion(distribution.package)],
+    distribution.env
+  );
+  if (result.code !== 0) {
+    throw createAgentError(
+      "UNINSTALL_FAILED",
+      summarizeCommandOutput(result.stdout, result.stderr, "卸载失败，请重试")
+    );
+  }
 }
 
 function getArchiveExtension(filePath: string): string {
@@ -272,7 +335,7 @@ async function resolveBinaryExecutablePath(
 
 async function installBinary(
   agent: AcpAgentEntry,
-  onProgress: ProgressHandler
+  onProgress: InstallProgressHandler
 ): Promise<AcpInstalledRecord> {
   const binary = resolveBinaryDistribution(agent.distribution.binary);
   if (!binary) {
@@ -314,15 +377,36 @@ async function installBinary(
   }
 }
 
-export async function installAgent(
+async function uninstallBinary(
   agent: AcpAgentEntry,
-  onProgress: ProgressHandler
-): Promise<AcpInstalledRecord> {
-  if (activeInstallAgentId) {
-    throw createAgentError("INSTALL_BUSY", "请等待当前安装完成");
+  onProgress: UninstallProgressHandler
+): Promise<void> {
+  if (!/^[A-Za-z0-9_-]+$/.test(agent.id)) {
+    throw createAgentError("INVALID_AGENT_ID", "非法 Agent ID");
   }
 
-  activeInstallAgentId = agent.id;
+  const targetDir = join(getDataSubPath("acp"), "bin", agent.id);
+  onProgress({ agentId: agent.id, status: "uninstalling", message: "正在卸载..." });
+
+  try {
+    await fs.rm(targetDir, { recursive: true, force: true });
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      const message = error instanceof Error ? error.message : "卸载失败，请重试";
+      throw createAgentError("UNINSTALL_FAILED", message);
+    }
+  }
+}
+
+export async function installAgent(
+  agent: AcpAgentEntry,
+  onProgress: InstallProgressHandler
+): Promise<AcpInstalledRecord> {
+  if (activeMutationAgentId) {
+    throw createAgentError("INSTALL_BUSY", "请等待当前操作完成");
+  }
+
+  activeMutationAgentId = agent.id;
 
   try {
     const record = agent.distribution.npx
@@ -338,6 +422,44 @@ export async function installAgent(
     onProgress({ agentId: agent.id, status: "error", message });
     throw error;
   } finally {
-    activeInstallAgentId = null;
+    activeMutationAgentId = null;
+  }
+}
+
+export async function uninstallAgent(
+  agent: AcpAgentEntry,
+  installMethod: AcpInstallMethod,
+  onProgress: UninstallProgressHandler
+): Promise<void> {
+  if (activeMutationAgentId) {
+    throw createAgentError("INSTALL_BUSY", "请等待当前操作完成");
+  }
+
+  activeMutationAgentId = agent.id;
+
+  try {
+    if (installMethod === "npx") {
+      await uninstallNpx(agent, onProgress);
+    } else if (installMethod === "uvx") {
+      await uninstallUvx(agent, onProgress);
+    } else {
+      await uninstallBinary(agent, onProgress);
+    }
+
+    const verification = await detectAgentInstallation(agent);
+    if (verification.installed) {
+      throw createAgentError(
+        "UNINSTALL_FAILED",
+        "卸载命令已执行但 Agent 仍可检测到，请手动检查环境"
+      );
+    }
+
+    onProgress({ agentId: agent.id, status: "done" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "卸载失败，请重试";
+    onProgress({ agentId: agent.id, status: "error", message });
+    throw error;
+  } finally {
+    activeMutationAgentId = null;
   }
 }

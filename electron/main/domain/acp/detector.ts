@@ -1,14 +1,15 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import spawn from "cross-spawn";
-import type {
-  AcpAgentBinaryDistribution,
-  AcpAgentDistribution,
-  AcpAgentEntry,
-  AcpAgentStatus,
-  AcpInstallMethod,
-  AcpInstalledMap,
-  AcpInstalledRecord,
+import {
+  stripPackageVersion,
+  type AcpAgentBinaryDistribution,
+  type AcpAgentDistribution,
+  type AcpAgentEntry,
+  type AcpAgentStatus,
+  type AcpInstallMethod,
+  type AcpInstalledMap,
+  type AcpInstalledRecord,
 } from "@shared/types/acp-agent";
 import { getDataSubPath } from "@main/infra/paths";
 
@@ -64,6 +65,12 @@ export async function readInstalledRecords(): Promise<AcpInstalledMap> {
 export async function writeInstalledRecords(records: AcpInstalledMap): Promise<void> {
   await ensureAgentsDirectory();
   await fs.writeFile(getInstalledRecordsPath(), JSON.stringify(records, null, 2), "utf8");
+}
+
+export async function removeInstalledRecord(agentId: string): Promise<void> {
+  const records = await readInstalledRecords();
+  delete records[agentId];
+  await writeInstalledRecords(records);
 }
 
 export async function runCommand(command: string, args: string[]): Promise<CommandResult> {
@@ -211,9 +218,7 @@ async function detectNpxInstallation(agent: AcpAgentEntry): Promise<DetectedInst
   }
 
   // npm list 只传包名不带版本，避免版本不匹配时误判为未安装
-  const barePackageName = distribution.package
-    .replace(/@[\d].*$/, "")
-    .replace(/(@[^@/]+)@.*$/, "$1");
+  const barePackageName = stripPackageVersion(distribution.package);
 
   const result = await runCommand(npmPath, ["list", "-g", barePackageName, "--depth=0", "--json"]);
 
@@ -359,6 +364,7 @@ export async function detectAgentStatuses(registry: {
           id: agent.id,
           installed: false,
           managedBy: null,
+          installMethod: undefined,
           updateAvailable: false,
           latestVersion: agent.version,
         } satisfies AcpAgentStatus;
@@ -395,6 +401,7 @@ export async function detectAgentStatuses(registry: {
         installed: true,
         detectedVersion: installedVersion,
         managedBy,
+        installMethod,
         updateAvailable: installedVersion
           ? compareVersions(agent.version, installedVersion) > 0
           : false,

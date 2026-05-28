@@ -14,12 +14,19 @@ const tabs = [
 ];
 
 const agents = computed(() => store.registry?.agents ?? []);
-const currentInstallAgentId = computed(
-  () =>
-    Object.values(store.installProgress).find(
-      (progress) => progress.status === "downloading" || progress.status === "installing"
-    )?.agentId ?? null
-);
+const currentMutatingAgentId = computed(() => {
+  const installing = Object.values(store.installProgress).find(
+    (progress) => progress.status === "downloading" || progress.status === "installing"
+  )?.agentId;
+  if (installing) {
+    return installing;
+  }
+
+  return (
+    Object.values(store.uninstallProgress).find((progress) => progress.status === "uninstalling")
+      ?.agentId ?? null
+  );
+});
 const hasRegistryError = computed(
   () =>
     !store.registryLoading &&
@@ -104,10 +111,12 @@ async function refreshStatuses(): Promise<void> {
           :agent="agent"
           :icon="store.icons[agent.id]"
           :agent-status="store.statuses[agent.id]"
-          :install-progress="store.installProgress[agent.id]"
-          :is-installing="currentInstallAgentId === agent.id"
-          :action-disabled="!!currentInstallAgentId && currentInstallAgentId !== agent.id"
+          :install-progress="store.installProgress[agent.id] ?? store.uninstallProgress[agent.id]"
+          :user-data-path="store.userDataPath"
+          :is-installing="currentMutatingAgentId === agent.id"
+          :action-disabled="!!currentMutatingAgentId && currentMutatingAgentId !== agent.id"
           @install="store.installAgent"
+          @uninstall="store.uninstallAgent"
         />
       </div>
       <div v-else class="flex items-center justify-center py-16">

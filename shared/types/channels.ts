@@ -78,6 +78,7 @@ export const SettingsChannels = {
 export const AppChannels = {
   openDevTools: "app:openDevTools",
   reportRendererError: "app:reportRendererError",
+  getUserDataPath: "app:getUserDataPath",
 } as const;
 
 export const WorkflowChannels = {
@@ -92,9 +93,11 @@ export const AcpAgentChannels = {
   getIcons: "acp:getIcons",
   detectStatus: "acp:detectStatus",
   install: "acp:install",
+  uninstall: "acp:uninstall",
   ensureAgent: "acp:ensureAgent",
   loadCapabilitiesCache: "acp:loadCapabilitiesCache",
   registryUpdated: "acp:registryUpdated",
   installProgress: "acp:installProgress",
+  uninstallProgress: "acp:uninstallProgress",
   agentUnavailable: "acp:event:agentUnavailable",
 } as const;

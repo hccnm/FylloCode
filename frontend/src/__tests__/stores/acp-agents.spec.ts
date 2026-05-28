@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
 import { acpAgentsApi } from "@renderer/api/acp-agents";
+import { appApi } from "@renderer/api/app";
 import type { AcpRegistry, AcpAgentStatus } from "@shared/types/acp-agent";
 
 let agentUnavailableListener: ((event: { agentId: string; reason: string }) => void) | null = null;
@@ -13,14 +14,22 @@ vi.mock("@renderer/api/acp-agents", () => ({
     getIcons: vi.fn(),
     detectStatus: vi.fn(),
     install: vi.fn(),
+    uninstall: vi.fn(),
     ensureAgent: vi.fn(),
     loadCapabilitiesCache: vi.fn(),
     onRegistryUpdated: vi.fn(() => () => {}),
     onInstallProgress: vi.fn(() => () => {}),
+    onUninstallProgress: vi.fn(() => () => {}),
     onAgentUnavailable: vi.fn((listener) => {
       agentUnavailableListener = listener;
       return () => {};
     }),
+  },
+}));
+
+vi.mock("@renderer/api/app", () => ({
+  appApi: {
+    getUserDataPath: vi.fn(),
   },
 }));
 
@@ -85,6 +94,10 @@ describe("useAcpAgentsStore", () => {
         installedAt: Date.now(),
       },
     });
+    vi.mocked(acpAgentsApi.uninstall).mockResolvedValue({
+      ok: true,
+      data: undefined,
+    });
     vi.mocked(acpAgentsApi.loadCapabilitiesCache).mockResolvedValue({
       ok: true,
       data: {
@@ -96,6 +109,10 @@ describe("useAcpAgentsStore", () => {
       data: {
         promptCapabilities: { image: false, audio: true, embeddedContext: false },
       },
+    });
+    vi.mocked(appApi.getUserDataPath).mockResolvedValue({
+      ok: true,
+      data: "/tmp/fyllocode-test",
     });
   });
 
@@ -158,6 +175,38 @@ describe("useAcpAgentsStore", () => {
     expect(store.installProgress["claude-code"]).toEqual({
       agentId: "claude-code",
       status: "done",
+    });
+  });
+
+  it("marks uninstall progress as done after a successful uninstall", async () => {
+    const store = useAcpAgentsStore();
+
+    await store.uninstallAgent("claude-code");
+
+    expect(acpAgentsApi.uninstall).toHaveBeenCalledWith("claude-code");
+    expect(acpAgentsApi.detectStatus).toHaveBeenCalled();
+    expect(store.uninstallProgress["claude-code"]).toEqual({
+      agentId: "claude-code",
+      status: "done",
+    });
+  });
+
+  it("marks uninstall progress as error when uninstall fails", async () => {
+    vi.mocked(acpAgentsApi.uninstall).mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "UNKNOWN_ERROR",
+        message: "permission denied",
+      },
+    });
+    const store = useAcpAgentsStore();
+
+    await store.uninstallAgent("claude-code");
+
+    expect(store.uninstallProgress["claude-code"]).toEqual({
+      agentId: "claude-code",
+      status: "error",
+      message: "permission denied",
     });
   });
 

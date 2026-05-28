@@ -81,12 +81,12 @@ config.global.stubs = {
   },
   UModal: {
     template:
-      '<div v-if="open"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="body" /><slot name="footer" /></div>',
+      '<div v-if="open"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="content" /><slot name="body" /><slot name="footer" /></div>',
     props: ["open", "title", "description"],
   },
   Modal: {
     template:
-      '<div v-if="open"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="body" /><slot name="footer" /></div>',
+      '<div v-if="open"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="content" /><slot name="body" /><slot name="footer" /></div>',
     props: ["open", "title", "description"],
   },
   UBadge: {

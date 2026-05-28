@@ -1,12 +1,14 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { acpAgentsApi } from "@renderer/api/acp-agents";
+import { appApi } from "@renderer/api/app";
 import { useSessionStore } from "./session";
 import type {
   AcpAgentStatus,
   AcpInstallProgress,
   AcpPromptCapabilities,
   AcpRegistry,
+  AcpUninstallProgress,
 } from "@shared/types/acp-agent";
 
 const DEFAULT_PROMPT_CAPABILITIES: AcpPromptCapabilities = {
@@ -20,7 +22,9 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
   const icons = ref<Record<string, string>>({});
   const statuses = ref<Record<string, AcpAgentStatus>>({});
   const installProgress = ref<Record<string, AcpInstallProgress>>({});
+  const uninstallProgress = ref<Record<string, AcpUninstallProgress>>({});
   const promptCapabilitiesByAgent = ref<Map<string, AcpPromptCapabilities>>(new Map());
+  const userDataPath = ref("");
   const registryLoading = ref(false);
   const registryError = ref<string | null>(null);
   const initialized = ref(false);
@@ -51,6 +55,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
 
   let stopRegistryUpdatedListener: (() => void) | null = null;
   let stopInstallProgressListener: (() => void) | null = null;
+  let stopUninstallProgressListener: (() => void) | null = null;
   let stopAgentUnavailableListener: (() => void) | null = null;
   let initPromise: Promise<void> | null = null;
 
@@ -75,6 +80,15 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
       stopInstallProgressListener = acpAgentsApi.onInstallProgress((progress) => {
         installProgress.value = {
           ...installProgress.value,
+          [progress.agentId]: progress,
+        };
+      });
+    }
+
+    if (!stopUninstallProgressListener) {
+      stopUninstallProgressListener = acpAgentsApi.onUninstallProgress((progress) => {
+        uninstallProgress.value = {
+          ...uninstallProgress.value,
           [progress.agentId]: progress,
         };
       });
@@ -155,6 +169,19 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     promptCapabilitiesByAgent.value = new Map(Object.entries(response.data));
   }
 
+  async function ensureUserDataPath(): Promise<void> {
+    if (userDataPath.value) {
+      return;
+    }
+
+    const response = await appApi.getUserDataPath();
+    if (!response.ok) {
+      return;
+    }
+
+    userDataPath.value = response.data;
+  }
+
   async function refreshCapabilities(agentId: string): Promise<void> {
     ensureAgentListeners();
     const response = await acpAgentsApi.ensureAgent(agentId);
@@ -191,7 +218,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     initializationError.value = null;
     initPromise = (async () => {
       await loadRegistry();
-      await Promise.all([loadIcons(), refreshStatus()]);
+      await Promise.all([loadIcons(), refreshStatus(), ensureUserDataPath()]);
       initialized.value = true;
     })();
 
@@ -258,12 +285,40 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     };
   }
 
+  async function uninstallAgent(agentId: string): Promise<void> {
+    ensureAgentListeners();
+
+    const response = await acpAgentsApi.uninstall(agentId);
+    if (!response.ok) {
+      uninstallProgress.value = {
+        ...uninstallProgress.value,
+        [agentId]: {
+          agentId,
+          status: "error",
+          message: response.error.message,
+        },
+      };
+      return;
+    }
+
+    await refreshStatus();
+    uninstallProgress.value = {
+      ...uninstallProgress.value,
+      [agentId]: {
+        agentId,
+        status: "done",
+      },
+    };
+  }
+
   return {
     registry,
     icons,
     statuses,
     installProgress,
+    uninstallProgress,
     promptCapabilitiesByAgent,
+    userDataPath,
     registryLoading,
     registryError,
     initialized,
@@ -280,8 +335,10 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     loadIcons,
     refreshStatus,
     loadCapabilitiesCache,
+    ensureUserDataPath,
     refreshCapabilities,
     getPromptCapabilities,
     installAgent,
+    uninstallAgent,
   };
 });

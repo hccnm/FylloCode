@@ -5,6 +5,7 @@ import type {
   AcpInstalledRecord,
   AcpPromptCapabilities,
   AcpRegistry,
+  AcpUninstallProgress,
 } from "@shared/types/acp-agent";
 
 export const acpAgentsApi = {
@@ -28,6 +29,10 @@ export const acpAgentsApi = {
     return window.api.acpAgents.install(agentId);
   },
 
+  uninstall(agentId: string): Promise<IpcResponse<void>> {
+    return window.api.acpAgents.uninstall(agentId);
+  },
+
   ensureAgent(
     agentId: string
   ): Promise<IpcResponse<{ promptCapabilities: AcpPromptCapabilities }>> {
@@ -44,6 +49,10 @@ export const acpAgentsApi = {
 
   onInstallProgress(listener: (progress: AcpInstallProgress) => void): () => void {
     return window.api.acpAgents.onInstallProgress(listener);
+  },
+
+  onUninstallProgress(listener: (progress: AcpUninstallProgress) => void): () => void {
+    return window.api.acpAgents.onUninstallProgress(listener);
   },
 
   onAgentUnavailable(listener: (event: { agentId: string; reason: string }) => void): () => void {

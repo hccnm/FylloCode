@@ -9,4 +9,8 @@ export const appApi = {
   reportRendererError(report: RendererErrorReport): Promise<IpcResponse<void>> {
     return window.api.app.reportRendererError(report);
   },
+
+  getUserDataPath(): Promise<IpcResponse<string>> {
+    return window.api.app.getUserDataPath();
+  },
 };

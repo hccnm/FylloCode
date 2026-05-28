@@ -5,6 +5,7 @@
   - `acpSessionId: z.string().min(1).optional()`
   - 验收：`pnpm typecheck` 通过；`createSessionInputSchema.parse({ projectId, title, agentId })` 与 `parse({ ..., configOptions: [...], acpSessionId: "x" })` 都返回成功。
 - [x] 1.2 在 `electron/preload/api/chat.ts` 的 `createSession` 入参类型（32-38 行）扩展为：
+
   ```ts
   createSession(input: {
     projectId: string;

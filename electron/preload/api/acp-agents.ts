@@ -7,6 +7,7 @@ import type {
   AcpInstalledRecord,
   AcpPromptCapabilities,
   AcpRegistry,
+  AcpUninstallProgress,
 } from "@shared/types/acp-agent";
 
 function subscribeToChannel<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -41,6 +42,10 @@ export const acpAgentsApi = {
     return ipcRenderer.invoke(AcpAgentChannels.install, agentId);
   },
 
+  uninstall(agentId: string): Promise<IpcResponse<void>> {
+    return ipcRenderer.invoke(AcpAgentChannels.uninstall, agentId);
+  },
+
   ensureAgent(
     agentId: string
   ): Promise<IpcResponse<{ promptCapabilities: AcpPromptCapabilities }>> {
@@ -57,6 +62,10 @@ export const acpAgentsApi = {
 
   onInstallProgress(listener: (progress: AcpInstallProgress) => void): () => void {
     return subscribeToChannel(AcpAgentChannels.installProgress, listener);
+  },
+
+  onUninstallProgress(listener: (progress: AcpUninstallProgress) => void): () => void {
+    return subscribeToChannel(AcpAgentChannels.uninstallProgress, listener);
   },
 
   onAgentUnavailable(listener: (event: { agentId: string; reason: string }) => void): () => void {

@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { AppChannels } from "@shared/types/channels";
 import { openDevToolsInputSchema, reportRendererErrorInputSchema } from "@shared/schemas/ipc/app";
 import logger from "@main/infra/logger";
@@ -18,6 +18,12 @@ export function registerAppHandlers(): void {
     wrapHandler(() => {
       const report = validate(reportRendererErrorInputSchema, input);
       logger.error(`[renderer:${report.source}] ${report.message}`, report);
+    })
+  );
+
+  ipcMain.handle(AppChannels.getUserDataPath, () =>
+    wrapHandler(() => {
+      return app.getPath("userData");
     })
   );
 }

@@ -11,4 +11,8 @@ export const appApi = {
   reportRendererError(report: RendererErrorReport): Promise<IpcResponse<void>> {
     return ipcRenderer.invoke(AppChannels.reportRendererError, report);
   },
+
+  getUserDataPath(): Promise<IpcResponse<string>> {
+    return ipcRenderer.invoke(AppChannels.getUserDataPath);
+  },
 };
