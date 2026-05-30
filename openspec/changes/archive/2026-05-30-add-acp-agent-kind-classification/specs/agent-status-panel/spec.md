@@ -1,10 +1,4 @@
-# agent-status-panel Specification
-
-## Purpose
-
-TBD - created by archiving change settings-page. Update Purpose after archive.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Agent 卡片列表展示
 
@@ -71,17 +65,3 @@ Agents tab SHALL 以网格卡片列表展示 ACP registry 中的所有 CLI agent
 - **WHEN** 渲染的 agent 满足 `__fyllo?.kind === "bridge"`
 - **THEN** 卡片名称区域 SHALL 显示 `i-lucide-cable` 图标
 - **AND** hover 该图标时 SHALL 显示「桥接器 · 与 Agent 桥接打通，需要先安装对应的 Agent」
-
-### Requirement: 手动刷新检测
-
-页面顶部 SHALL 提供 "Refresh" 按钮，点击后触发 store action `refreshAll()`，重新拉取 registry、图标与安装状态。刷新期间按钮 SHALL 显示 loading 状态，完成后恢复。
-
-#### Scenario: 点击 Refresh 按钮
-
-- **WHEN** 用户点击 "Refresh" 按钮
-- **THEN** 按钮进入 loading 状态，`refreshAll()` action 被调用，完成后 agent 卡片状态更新
-
-#### Scenario: 新安装 agent 后刷新
-
-- **WHEN** 用户在系统中安装了某 agent 后点击 Refresh
-- **THEN** 对应 agent 卡片状态从 "Not Installed" 变为 "Installed" 并显示版本号

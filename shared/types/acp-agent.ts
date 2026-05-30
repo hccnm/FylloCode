@@ -1,6 +1,11 @@
 export type AcpInstallMethod = "npx" | "uvx" | "binary";
 
 export type AcpManagedBy = "fyllocode" | "user";
+export type AcpAgentKind = "native" | "adapter" | "bridge";
+
+export interface AcpFylloMeta {
+  kind: AcpAgentKind;
+}
 
 export interface AcpAgentNpxDistribution {
   package: string;
@@ -35,6 +40,7 @@ export interface AcpAgentEntry {
   icon?: string;
   repository?: string;
   distribution: AcpAgentDistribution;
+  __fyllo?: AcpFylloMeta;
 }
 
 export interface AcpRegistry {

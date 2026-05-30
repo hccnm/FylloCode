@@ -56,6 +56,7 @@ pnpm test:coverage    # 生成覆盖率报告
 如需更多详细信息，Agent 可以主动查看下方的核心 guidelines 文档。
 
 - **架构文档** - [Architecture](guidelines/Architecture.md)
+- **领域词汇** - [Domain](guidelines/Domain.md)
 - **主进程分层** - [MainProcess](guidelines/MainProcess.md)
 - **渲染进程分层** - [RendererProcess](guidelines/RendererProcess.md)
 - **数据模型** - [DataModel](guidelines/DataModel.md)

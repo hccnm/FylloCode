@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import { join } from "path";
 import { net } from "electron";
 import type { AcpRegistry, AcpRegistryCache } from "@shared/types/acp-agent";
+import { resolveAgentKind } from "@main/domain/acp/agent-kind-map";
 import { getDataSubPath } from "@main/infra/paths";
 import logger from "@main/infra/logger";
 import { invalidateChangedIcons } from "./acp-icon-cache";
@@ -13,6 +14,18 @@ let refreshPromise: Promise<AcpRegistry> | null = null;
 
 function getRegistryCachePath(): string {
   return join(getDataSubPath("acp"), "registry-cache.json");
+}
+
+function enrichRegistry(data: AcpRegistry): AcpRegistry {
+  return {
+    ...data,
+    agents: data.agents.map((agent) => ({
+      ...agent,
+      __fyllo: {
+        kind: resolveAgentKind(agent.id),
+      },
+    })),
+  };
 }
 
 async function ensureAgentsDirectory(): Promise<void> {
@@ -71,8 +84,9 @@ async function refreshRegistryInternal(
     try {
       const freshRegistry = await fetchRegistryFromNetwork();
       await writeRegistryCache(freshRegistry);
-      onUpdated?.(freshRegistry);
-      return freshRegistry;
+      const enrichedRegistry = enrichRegistry(freshRegistry);
+      onUpdated?.(enrichedRegistry);
+      return enrichedRegistry;
     } finally {
       refreshPromise = null;
     }
@@ -89,14 +103,14 @@ export async function getRegistry(
   const cache = await readRegistryCache();
 
   if (cache && !isRegistryCacheExpired(cache)) {
-    return cache.data;
+    return enrichRegistry(cache.data);
   }
 
   if (cache) {
     void refreshRegistryInternal(options.onUpdated).catch((error) => {
       logger.warn("[acp] background registry refresh failed", error);
     });
-    return cache.data;
+    return enrichRegistry(cache.data);
   }
 
   return refreshRegistryInternal(options.onUpdated);

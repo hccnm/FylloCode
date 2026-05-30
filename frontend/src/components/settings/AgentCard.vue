@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import AgentKindBadge from "@renderer/components/acp/AgentKindBadge.vue";
 import {
   stripPackageVersion,
   type AcpAgentEntry,
@@ -118,7 +119,12 @@ function confirmUninstall(): void {
           </div>
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-highlighted truncate">{{ agent.name }}</p>
+          <div class="flex items-center gap-1.5">
+            <span class="min-w-0 text-sm font-medium text-highlighted truncate">
+              {{ agent.name }}
+            </span>
+            <AgentKindBadge :kind="agent.__fyllo?.kind" />
+          </div>
           <div class="flex items-center gap-1.5">
             <span class="text-xs text-muted/60">{{ versionLabel }}</span>
             <span class="text-xs text-muted/40">·</span>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import AgentKindBadge from "@renderer/components/acp/AgentKindBadge.vue";
 import type { AcpAgentEntry, AcpAgentStatus, AcpInstallProgress } from "@shared/types/acp-agent";
 
 const props = defineProps<{
@@ -58,7 +59,12 @@ function handleInstall(event: MouseEvent): void {
       </div>
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5">
-          <p class="text-sm font-medium text-highlighted truncate">{{ agent.name }}</p>
+          <div class="flex-1 flex items-center gap-1.5">
+            <span class="min-w-0 text-sm font-medium text-highlighted truncate">
+              {{ agent.name }}
+            </span>
+            <AgentKindBadge :kind="agent.__fyllo?.kind" />
+          </div>
           <span class="text-xs text-muted/60 shrink-0">v{{ agent.version }}</span>
         </div>
         <p class="mt-0.5 text-xs text-muted line-clamp-2">{{ agent.description }}</p>
