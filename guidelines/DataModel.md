@@ -42,6 +42,10 @@ keywords: [data-model, shared-types, persistence, serialization]
 - MUST: 保持共享响应结构 `IpcResponse<T>`、流式消息结构 `StreamMessage<T>`、错误信息结构 `IpcErrorInfo` 的统一来源，避免局部重定义。
 - MUST: 将新错误码加入 `shared/constants/error-codes.ts`，并把依赖这些错误码的 IPC 返回值保持为共享联合类型。
 - MUST: 在默认值、可选字段、时间戳格式、枚举值含义发生变化时，先判断这是否是行为契约变化；若是，先更新 OpenSpec。
+- MUST: 当 proposal 涉及持久化文件 schema 的不兼容变更（字段重命名、类型变更、字段删除、结构调整）时，在 `electron/main/migrations/` 下新增一个独立的迁移脚本，文件名格式为 `YYYYMMDD_NNN_<kebab-case-description>.ts`，并将其追加到 `electron/main/migrations/index.ts` 的迁移数组末尾（数组顺序须与文件名字母序一致）。迁移脚本须满足：
+  - **幂等**：对目标字段/文件不存在、已是新格式等情况须静默跳过，不抛出异常，确保重复执行不产生副作用
+  - **可测试**：通过 `MigrationContext.dataPath` 访问数据目录，不直接 import `getDataSubPath` 等全局路径单例
+  - 纯缓存文件（`registry-cache.json`、`status-cache.json`）的格式变更无需迁移脚本，因其读取失败时有自动重建路径；账本类文件（`installed.json`、`sessions/*.json`）的格式变更 MUST 提供迁移脚本
 - SHOULD: 使用字符串时间戳或文件友好格式持久化运行状态，而不是把 `Date` 实例直接隐式写入 JSON。
 - SHOULD: 为每种关键持久化结构保留对应的 storage/service 测试，证明序列化与反序列化行为。
 - MAY: 在仅限前端展示的局部视图模型中派生附加字段，但不要把这些派生字段反向写进共享持久化结构。
@@ -81,3 +85,4 @@ keywords: [data-model, shared-types, persistence, serialization]
 - 当共享类型目录、存储格式、消息文件布局、错误码来源或默认值语义变化时，必须更新本文档。
 - 当新增 capability 引入新的持久化资源、共享实体或跨进程 payload 时，应补充本文档中的 Rules 与 Examples。
 - 如果 `shared/types/` 的注释、名称或结构与 OpenSpec requirement 冲突，应以 spec 和实际运行契约为准并修复文档。
+- 当新增迁移脚本时，须同步更新本文档中相关章节对持久化结构的描述（如"ACP 安装状态缓存"），保持文档与代码一致。

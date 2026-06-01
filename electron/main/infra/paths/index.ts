@@ -10,7 +10,8 @@ type SubPath =
   | "integrations"
   | "acp"
   | "workflows"
-  | "apply-runs";
+  | "apply-runs"
+  | "migrations";
 
 /**
  * 获取业务数据子目录路径

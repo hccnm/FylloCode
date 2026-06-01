@@ -4,6 +4,7 @@ import { registerAllHandlers } from "@main/ipc";
 import { setupProbeBroadcast } from "@main/ipc/chat";
 import { initBuiltInWorkflows } from "@main/services/workflow/built-in-loader";
 import { syncShellPath } from "@main/infra/process/sync-shell-path";
+import { runAllMigrations } from "@main/migrations";
 import { disposeAll } from "./lifecycle";
 import { createMainWindow } from "./window";
 import logger from "@main/infra/logger";
@@ -19,6 +20,7 @@ export function startApp(): void {
     });
 
     await syncShellPath();
+    await runAllMigrations();
 
     logger.info(`FylloCode starting — v${app.getVersion()} [${is.dev ? "dev" : "prod"}]`);
 
