@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.11.2] - 2026-06-01
+
+This patch release focuses on ACP Agent management improvements. Installed Agents can now be uninstalled from inside the app, Agent lists show clearer kind information, and the Chat empty-state picker layout is more stable. Agent installation status detection is also much faster, reducing wait time in settings and selection surfaces.
+
+### Added
+
+- ACP Agent uninstall flow, allowing installed Agents to be removed from settings after confirmation and using the correct uninstall command for each installation method
+- ACP Agent kind classification, shown in registry cache, settings cards, and Chat empty-state cards to help distinguish different Agent categories
+- Agent installation status cache with background refresh, allowing the app to show the most recent known result first and then update status asynchronously
+
+### Changed
+
+- Agent installation status detection now runs in batched distribution-level probes, significantly reducing the time spent checking Agents one by one
+- In the Chat empty state, Agent picker tiles now center automatically when fewer than four Agents are installed, avoiding left-heavy sparse layouts
+- ACP Agent cards now share a common presentation base, move uninstall into the overflow menu, and use top-right badges for installed and selected states
+- Agent card external links now prioritize `website` and `repository`, and the "latest version" hint has been removed from installed states
+
+### Fixed
+
+- Fixed cases where the Chat empty-state "More Agents" tile could stretch or appear visually unbalanced when only a small number of Agents were installed
+- Fixed stale local install records and capability caches that could remain after a successful uninstall
+- Fixed cases where uninstall could be misreported as successful after a silent underlying command failure by rechecking the real installation state after completion
+
 ## [0.11.1] - 2026-05-28
 
 This patch release continues the Chat configuration options experience, fixes empty-state styling, and tightens repository quality checks.
