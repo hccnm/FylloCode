@@ -14,11 +14,15 @@ import type {
   ParamValueZeroOrMore,
   ParamValueZeroOrOne,
 } from 'vue-router'
+import type {
+  _ExtractParamParserType,
+} from 'vue-router/experimental'
 
 declare module 'vue-router' {
   interface TypesConfig {
-    ParamParsers:
-      | never
+    _ParamParsers: {}
+    RouteNamedMap: import('vue-router/auto-routes').RouteNamedMap
+    _RouteFileInfoMap: import('vue-router/auto-routes')._RouteFileInfoMap
   }
 }
 
@@ -116,11 +120,15 @@ declare module 'vue-router/auto-routes' {
         | '/'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/chat.vue': {
       routes:
         | '/chat'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/cron.vue': {
@@ -128,11 +136,15 @@ declare module 'vue-router/auto-routes' {
         | '/cron'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/integration.vue': {
       routes:
         | '/integration'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/proposal.vue': {
@@ -142,11 +154,15 @@ declare module 'vue-router/auto-routes' {
         | '/proposal/[id]'
       views:
         | 'default'
+      pathParamNames:
+        | never
     }
     'src/pages/proposal/index.vue': {
       routes:
         | '/proposal/'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/proposal/[id].vue': {
@@ -154,11 +170,15 @@ declare module 'vue-router/auto-routes' {
         | '/proposal/[id]'
       views:
         | never
+      pathParamNames:
+        | 'id'
     }
     'src/pages/settings.vue': {
       routes:
         | '/settings'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/task.vue': {
@@ -166,11 +186,15 @@ declare module 'vue-router/auto-routes' {
         | '/task'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/workflow.vue': {
       routes:
         | '/workflow'
       views:
+        | never
+      pathParamNames:
         | never
     }
   }
