@@ -1,10 +1,5 @@
-import type logger from "@main/infra/logger";
-
-type Logger = typeof logger;
-
 export type MigrationContext = {
-  dataPath: string;
-  logger: Logger;
+  version: string;
 };
 
 export type Migration = {

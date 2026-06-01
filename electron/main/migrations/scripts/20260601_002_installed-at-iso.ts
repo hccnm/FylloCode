@@ -1,9 +1,9 @@
 import { promises as fs } from "fs";
 import { join } from "path";
-import type { MigrationContext } from "./types";
+import { getDataSubPath } from "@main/infra/paths";
 
-export async function migrate({ dataPath }: MigrationContext): Promise<void> {
-  const installedPath = join(dataPath, "acp", "installed.json");
+export async function migrate(): Promise<void> {
+  const installedPath = join(getDataSubPath("acp"), "installed.json");
 
   let raw: Record<string, Record<string, unknown>>;
   try {

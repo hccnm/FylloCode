@@ -1,9 +1,9 @@
 import { promises as fs } from "fs";
 import { join } from "path";
-import type { MigrationContext } from "./types";
+import { getDataSubPath } from "@main/infra/paths";
 
-export async function migrate({ dataPath }: MigrationContext): Promise<void> {
-  const projectsDir = join(dataPath, "projects");
+export async function migrate(): Promise<void> {
+  const projectsDir = getDataSubPath("projects");
 
   let projectEntries: string[];
   try {
