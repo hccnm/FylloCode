@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
+import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
 import { getTaskDescriptionSummary } from "@renderer/utils/task";
 import { timeAgo } from "@renderer/utils/time";
 import type { TaskItem } from "@shared/types/task";
@@ -14,7 +15,7 @@ const emit = defineEmits<{
   delete: [task: TaskItem];
 }>();
 
-const showDeleteConfirm = ref(false);
+const confirmDialog = useConfirmDialog();
 
 const externalUrl = computed(() => {
   if (props.task.source === "local") {
@@ -27,8 +28,18 @@ const externalUrl = computed(() => {
 
 const descriptionSummary = computed(() => getTaskDescriptionSummary(props.task));
 
-function handleDelete(): void {
-  showDeleteConfirm.value = false;
+async function handleDelete(): Promise<void> {
+  const confirmed = await confirmDialog({
+    title: "删除任务",
+    description: "确认删除这条本地任务吗？删除后无法恢复。",
+    confirmLabel: "删除",
+    confirmColor: "error",
+  });
+
+  if (!confirmed) {
+    return;
+  }
+
   emit("delete", props.task);
 }
 
@@ -123,21 +134,8 @@ function handleViewDetail(): void {
         icon="i-lucide-trash-2"
         title="删除任务"
         class="text-muted transition-colors hover:bg-error/10 hover:text-error"
-        @click.stop="showDeleteConfirm = true"
+        @click.stop="void handleDelete()"
       />
     </div>
   </div>
-
-  <UModal v-model:open="showDeleteConfirm" title="删除任务" description="删除后无法恢复。">
-    <template #body>
-      <p class="text-sm text-muted">确认删除这条本地任务吗？</p>
-    </template>
-
-    <template #footer>
-      <div class="flex justify-end gap-2">
-        <UButton variant="ghost" color="neutral" @click="showDeleteConfirm = false">取消</UButton>
-        <UButton color="error" @click="handleDelete">删除</UButton>
-      </div>
-    </template>
-  </UModal>
 </template>

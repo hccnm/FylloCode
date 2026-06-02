@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import { useColorMode } from "@vueuse/core";
+import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
 import { useSettingsStore } from "@renderer/stores/settings";
 import type {
   ThemeMode,
@@ -12,6 +13,7 @@ import type {
 
 const store = useSettingsStore();
 const colorMode = useColorMode();
+const confirmDialog = useConfirmDialog();
 
 const themeMode = computed({
   get: () => store.preferences.theme,
@@ -74,14 +76,19 @@ function toggleNotification(val: NotificationMethod): void {
   store.updatePreference("notificationMethods", updated);
 }
 
-const showClearModal = ref(false);
-const isClearing = ref(false);
+async function handleClearHistory(): Promise<void> {
+  const confirmed = await confirmDialog({
+    title: "清除所有历史？",
+    description: "这将永久删除所有会话历史、Token 用量统计及相关数据，此操作不可撤销。",
+    confirmLabel: "清除所有历史",
+    confirmColor: "error",
+  });
 
-async function confirmClearHistory(): Promise<void> {
-  isClearing.value = true;
+  if (!confirmed) {
+    return;
+  }
+
   await store.clearAllHistory();
-  isClearing.value = false;
-  showClearModal.value = false;
 }
 </script>
 
@@ -106,8 +113,8 @@ async function confirmClearHistory(): Promise<void> {
                 :variant="themeMode === opt.value ? 'solid' : 'ghost'"
                 :color="themeMode === opt.value ? 'primary' : 'neutral'"
                 @click="themeMode = opt.value"
-                >{{ opt.label }}</UButton
-              >
+                >{{ opt.label }}
+              </UButton>
             </div>
           </div>
 
@@ -147,8 +154,8 @@ async function confirmClearHistory(): Promise<void> {
                 :variant="store.preferences.defaultAgentMode === opt.value ? 'solid' : 'ghost'"
                 :color="store.preferences.defaultAgentMode === opt.value ? 'primary' : 'neutral'"
                 @click="store.updatePreference('defaultAgentMode', opt.value)"
-                >{{ opt.label }}</UButton
-              >
+                >{{ opt.label }}
+              </UButton>
             </div>
           </div>
 
@@ -165,8 +172,8 @@ async function confirmClearHistory(): Promise<void> {
                 :variant="isNotificationSelected(opt.value) ? 'solid' : 'outline'"
                 :color="isNotificationSelected(opt.value) ? 'primary' : 'neutral'"
                 @click="toggleNotification(opt.value)"
-                >{{ opt.label }}</UButton
-              >
+                >{{ opt.label }}
+              </UButton>
             </div>
           </div>
 
@@ -202,8 +209,8 @@ async function confirmClearHistory(): Promise<void> {
                 :variant="store.preferences.tokenStatsPeriod === opt.value ? 'solid' : 'ghost'"
                 :color="store.preferences.tokenStatsPeriod === opt.value ? 'primary' : 'neutral'"
                 @click="store.updatePreference('tokenStatsPeriod', opt.value)"
-                >{{ opt.label }}</UButton
-              >
+                >{{ opt.label }}
+              </UButton>
             </div>
           </div>
 
@@ -247,7 +254,7 @@ async function confirmClearHistory(): Promise<void> {
               <p class="text-sm font-medium text-highlighted">清除所有历史</p>
               <p class="text-xs text-muted">永久删除所有会话历史和用量数据。</p>
             </div>
-            <UButton variant="outline" color="error" size="sm" @click="showClearModal = true">
+            <UButton variant="outline" color="error" size="sm" @click="void handleClearHistory()">
               <UIcon name="i-lucide-trash-2" class="w-4 h-4 mr-1.5" />
               清除历史
             </UButton>
@@ -256,28 +263,4 @@ async function confirmClearHistory(): Promise<void> {
       </UCard>
     </section>
   </div>
-
-  <UModal v-model:open="showClearModal">
-    <template #content>
-      <div class="p-6 space-y-4">
-        <div class="flex items-start gap-3">
-          <div class="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center shrink-0">
-            <UIcon name="i-lucide-triangle-alert" class="w-5 h-5 text-error" />
-          </div>
-          <div>
-            <h3 class="text-base font-semibold text-highlighted">清除所有历史？</h3>
-            <p class="text-sm text-muted mt-1">
-              这将永久删除所有会话历史、Token 用量统计及相关数据，此操作不可撤销。
-            </p>
-          </div>
-        </div>
-        <div class="flex justify-end gap-2 pt-2">
-          <UButton variant="ghost" color="neutral" @click="showClearModal = false">取消</UButton>
-          <UButton color="error" :loading="isClearing" @click="confirmClearHistory">
-            清除所有历史
-          </UButton>
-        </div>
-      </div>
-    </template>
-  </UModal>
 </template>

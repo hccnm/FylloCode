@@ -1,7 +1,13 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import TaskCard from "@renderer/components/task/TaskCard.vue";
 import type { TaskItem } from "@shared/types/task";
+
+const confirmDialogMock = vi.fn<(options: Record<string, unknown>) => Promise<boolean>>();
+
+vi.mock("@renderer/composables/useConfirmDialog", () => ({
+  useConfirmDialog: () => confirmDialogMock,
+}));
 
 function buildTask(overrides: Partial<TaskItem> = {}): TaskItem {
   return {
@@ -20,6 +26,10 @@ function buildTask(overrides: Partial<TaskItem> = {}): TaskItem {
 }
 
 describe("TaskCard", () => {
+  beforeEach(() => {
+    confirmDialogMock.mockReset();
+  });
+
   it("emits view-detail when clicking the main content area", async () => {
     const wrapper = mount(TaskCard, {
       props: {
@@ -49,6 +59,8 @@ describe("TaskCard", () => {
   });
 
   it("does not emit view-detail when clicking delete", async () => {
+    confirmDialogMock.mockResolvedValue(false);
+
     const wrapper = mount(TaskCard, {
       props: {
         task: buildTask(),
@@ -58,6 +70,41 @@ describe("TaskCard", () => {
     await wrapper.get('button[title="删除任务"]').trigger("click");
 
     expect(wrapper.emitted("view-detail")).toBeUndefined();
+  });
+
+  it("opens a confirm dialog before deleting and emits delete on confirm", async () => {
+    const task = buildTask();
+    confirmDialogMock.mockResolvedValue(true);
+
+    const wrapper = mount(TaskCard, {
+      props: {
+        task,
+      },
+    });
+
+    await wrapper.get('button[title="删除任务"]').trigger("click");
+
+    expect(confirmDialogMock).toHaveBeenCalledWith({
+      title: "删除任务",
+      description: "确认删除这条本地任务吗？删除后无法恢复。",
+      confirmLabel: "删除",
+      confirmColor: "error",
+    });
+    expect(wrapper.emitted("delete")).toEqual([[task]]);
+  });
+
+  it("does not emit delete when the confirm dialog is cancelled", async () => {
+    confirmDialogMock.mockResolvedValue(false);
+
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask(),
+      },
+    });
+
+    await wrapper.get('button[title="删除任务"]').trigger("click");
+
+    expect(wrapper.emitted("delete")).toBeUndefined();
   });
 
   it("shows source button for yunxiao tasks when sourceMeta.url exists", () => {

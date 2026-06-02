@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import AgentCardBase from "@renderer/components/acp/AgentCardBase.vue";
+import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
 import {
   stripPackageVersion,
   type AcpAgentEntry,
@@ -33,8 +34,8 @@ type AgentMenuItem = {
   onSelect: () => void;
 };
 
-const showTakeoverModal = ref(false);
 const showUninstallModal = ref(false);
+const confirmDialog = useConfirmDialog();
 
 const canUpdate = computed(() => props.agentStatus?.installed && props.agentStatus.updateAvailable);
 const isUserManagedUpdate = computed(
@@ -110,17 +111,23 @@ const uninstallButtonColor = computed(() =>
   props.agentStatus?.managedBy === "user" ? "warning" : "error"
 );
 
-function requestInstall(): void {
+async function requestInstall(): Promise<void> {
   if (isUserManagedUpdate.value) {
-    showTakeoverModal.value = true;
+    const confirmed = await confirmDialog({
+      title: "接管此 Agent 的更新？",
+      description: "继续后，FylloCode 将接管这个用户自行安装的 Agent，并负责后续更新管理。",
+      confirmLabel: "确认更新",
+      confirmColor: "warning",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    emit("install", props.agent.id);
     return;
   }
 
-  emit("install", props.agent.id);
-}
-
-function confirmTakeoverInstall(): void {
-  showTakeoverModal.value = false;
   emit("install", props.agent.id);
 }
 
@@ -165,7 +172,13 @@ function confirmUninstall(): void {
         <div v-else-if="hasError" class="flex items-center gap-2 text-xs text-error">
           <UIcon name="i-lucide-circle-x" class="h-4 w-4 shrink-0" />
           <span class="max-w-24 truncate" :title="progressMessage">{{ progressMessage }}</span>
-          <UButton size="xs" variant="ghost" color="error" :title="'重试'" @click="requestInstall">
+          <UButton
+            size="xs"
+            variant="ghost"
+            color="error"
+            :title="'重试'"
+            @click="void requestInstall()"
+          >
             <UIcon name="i-lucide-rotate-ccw" class="h-3 w-3" />
           </UButton>
         </div>
@@ -176,7 +189,7 @@ function confirmUninstall(): void {
             color="primary"
             :disabled="actionDisabled"
             :title="uninstallDisabledReason"
-            @click="requestInstall"
+            @click="void requestInstall()"
           >
             <UIcon name="i-lucide-refresh-cw" class="mr-1 h-3 w-3" />
             更新
@@ -192,7 +205,7 @@ function confirmUninstall(): void {
           :disabled="actionDisabled"
           :title="uninstallDisabledReason"
           class="shrink-0"
-          @click="requestInstall"
+          @click="void requestInstall()"
         >
           <UIcon name="i-lucide-download" class="mr-1 h-3 w-3" />
           安装
@@ -225,62 +238,35 @@ function confirmUninstall(): void {
     </template>
   </AgentCardBase>
 
-  <UModal v-model:open="showTakeoverModal">
-    <template #content>
-      <div class="p-6 space-y-4">
-        <div class="flex items-start gap-3">
-          <div
-            class="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center shrink-0"
-          >
-            <UIcon name="i-lucide-triangle-alert" class="w-5 h-5 text-warning" />
-          </div>
-          <div>
-            <h3 class="text-base font-semibold text-highlighted">接管此 Agent 的更新？</h3>
-            <p class="text-sm text-muted mt-1">
-              继续后，FylloCode 将接管这个用户自行安装的 Agent，并负责后续更新管理。
-            </p>
-          </div>
+  <UModal
+    v-model:open="showUninstallModal"
+    :title="`卸载 ${agent.name}？`"
+    :description="uninstallLeadText"
+  >
+    <template #body>
+      <div class="flex items-start gap-3">
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning/10">
+          <UIcon name="i-lucide-triangle-alert" class="w-5 h-5 text-warning" />
         </div>
-        <div class="flex justify-end gap-2 pt-2">
-          <UButton variant="ghost" color="neutral" @click="showTakeoverModal = false">取消</UButton>
-          <UButton color="warning" @click="confirmTakeoverInstall">确认更新</UButton>
+        <div class="min-w-0 flex-1 space-y-3">
+          <p class="text-sm text-muted">{{ uninstallCommandLabel }}</p>
+          <div
+            class="flex flex-col justify-start space-y-1.5 rounded-md bg-muted px-4 py-2 text-sm"
+          >
+            <code class="font-mono break-all whitespace-pre-wrap leading-relaxed">
+              {{ uninstallCommandText }}
+            </code>
+          </div>
+          <p class="text-sm text-muted">{{ uninstallFootnote }}</p>
         </div>
       </div>
     </template>
-  </UModal>
 
-  <UModal v-model:open="showUninstallModal">
-    <template #content>
-      <div class="p-6 space-y-4">
-        <div class="flex items-start gap-3">
-          <div
-            class="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center shrink-0"
-          >
-            <UIcon name="i-lucide-triangle-alert" class="w-5 h-5 text-warning" />
-          </div>
-          <div class="flex-1 min-w-0 space-y-3">
-            <h3 class="text-base font-semibold text-highlighted">卸载 {{ agent.name }}？</h3>
-            <p class="text-sm text-muted">{{ uninstallLeadText }}</p>
-            <p class="text-sm text-muted">{{ uninstallCommandLabel }}</p>
-            <div
-              class="mt-3 space-y-1.5 text-sm flex flex-col justify-start rounded-md bg-muted px-4 py-2"
-            >
-              <code class="font-mono break-all whitespace-pre-wrap leading-relaxed">
-                {{ uninstallCommandText }}
-              </code>
-            </div>
-            <p class="text-sm text-muted mt-3">{{ uninstallFootnote }}</p>
-          </div>
-        </div>
-        <div class="flex justify-end gap-2 pt-2">
-          <UButton variant="ghost" color="neutral" @click="showUninstallModal = false">
-            取消
-          </UButton>
-          <UButton :color="uninstallButtonColor" @click="confirmUninstall">
-            {{ uninstallButtonLabel }}
-          </UButton>
-        </div>
-      </div>
+    <template #footer>
+      <UButton variant="ghost" color="neutral" @click="showUninstallModal = false">取消</UButton>
+      <UButton :color="uninstallButtonColor" @click="confirmUninstall">
+        {{ uninstallButtonLabel }}
+      </UButton>
     </template>
   </UModal>
 </template>

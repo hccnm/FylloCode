@@ -37,6 +37,26 @@ const isLocalTask = computed(() => props.task?.source === "local");
 const canEdit = computed(() => Boolean(props.task && isLocalTask.value));
 const canSave = computed(() => Boolean(title.value.trim()));
 const sourceDisplay = computed(() => (props.task ? buildSourceDisplay(props.task) : ""));
+const modalTitle = computed(() => {
+  if (mode.value === "edit") {
+    return "编辑任务";
+  }
+
+  return "任务详情";
+});
+const modalDescription = computed(() => {
+  if (mode.value === "edit") {
+    return props.task
+      ? `修改「${props.task.title}」的标题、描述和状态。`
+      : "修改任务的标题、描述和状态。";
+  }
+
+  if (!props.task) {
+    return "查看任务的详情和状态。";
+  }
+
+  return `${props.task.title} · ${sourceDisplay.value} · ${props.task.status === "open" ? "打开" : "关闭"} · 创建于 ${timeAgo(props.task.createdAt)}`;
+});
 const editorContent = computed(() => props.task?.description.content ?? "");
 const editorContentType = computed<"html" | "markdown">(() => {
   return mapEditorContentType(props.task?.description.format);
@@ -133,22 +153,14 @@ watch(
 <template>
   <UModal
     :open="open"
-    :title="mode === 'edit' ? '编辑任务' : '任务详情'"
+    :title="modalTitle"
+    :description="modalDescription"
     @update:open="$event ? emit('update:open', $event) : close()"
   >
     <template #body>
-      <div v-if="task" class="space-y-5">
+      <div v-if="task" class="space-y-4">
         <template v-if="mode === 'view'">
           <div class="space-y-3">
-            <div class="flex items-start justify-between gap-3">
-              <h2 class="text-xl font-semibold leading-7 text-highlighted">
-                {{ task.title }}
-              </h2>
-              <span class="shrink-0 text-xs text-muted">
-                {{ timeAgo(task.createdAt) }}
-              </span>
-            </div>
-
             <div class="flex flex-wrap items-center gap-2 text-sm text-muted">
               <UBadge color="neutral" variant="soft">
                 {{ sourceDisplay }}
@@ -226,17 +238,15 @@ watch(
     </template>
 
     <template #footer>
-      <div class="flex w-full items-center justify-end gap-2">
-        <template v-if="mode === 'view'">
-          <UButton variant="ghost" color="neutral" @click="close">关闭</UButton>
-          <UButton v-if="canEdit" color="primary" @click="startEditing">编辑</UButton>
-        </template>
+      <template v-if="mode === 'view'">
+        <UButton variant="ghost" color="neutral" @click="close">关闭</UButton>
+        <UButton v-if="canEdit" color="primary" @click="startEditing">编辑</UButton>
+      </template>
 
-        <template v-else>
-          <UButton variant="ghost" color="neutral" @click="cancelEditing">取消</UButton>
-          <UButton color="primary" :disabled="!canSave" @click="submit">保存</UButton>
-        </template>
-      </div>
+      <template v-else>
+        <UButton variant="ghost" color="neutral" @click="cancelEditing">取消</UButton>
+        <UButton color="primary" :disabled="!canSave" @click="submit">保存</UButton>
+      </template>
     </template>
   </UModal>
 </template>

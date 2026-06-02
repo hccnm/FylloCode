@@ -1,7 +1,13 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import AgentCard from "@renderer/components/settings/AgentCard.vue";
 import type { AcpAgentEntry, AcpAgentStatus } from "@shared/types/acp-agent";
+
+const confirmDialogMock = vi.fn<(options: Record<string, unknown>) => Promise<boolean>>();
+
+vi.mock("@renderer/composables/useConfirmDialog", () => ({
+  useConfirmDialog: () => confirmDialogMock,
+}));
 
 const agent: AcpAgentEntry = {
   id: "claude-code",
@@ -38,6 +44,10 @@ function mounted(status?: Partial<AcpAgentStatus>) {
 }
 
 describe("AgentCard uninstall", () => {
+  beforeEach(() => {
+    confirmDialogMock.mockReset();
+  });
+
   it("renders uninstall menu when installed and hides it when not installed", () => {
     const installedWrapper = mounted();
     expect(installedWrapper.find('[data-test="dropdown-item-卸载"]').exists()).toBe(true);
@@ -209,5 +219,47 @@ describe("AgentCard uninstall", () => {
     await uninstallButtons[1]!.trigger("click");
 
     expect(wrapper.emitted("uninstall")).toEqual([["claude-code"]]);
+  });
+
+  it("asks for takeover confirmation before updating a user-managed agent", async () => {
+    confirmDialogMock.mockResolvedValue(true);
+
+    const wrapper = mounted({
+      managedBy: "user",
+      updateAvailable: true,
+    });
+
+    const updateButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().trim() === "更新");
+    expect(updateButton).toBeTruthy();
+
+    await updateButton!.trigger("click");
+
+    expect(confirmDialogMock).toHaveBeenCalledWith({
+      title: "接管此 Agent 的更新？",
+      description: "继续后，FylloCode 将接管这个用户自行安装的 Agent，并负责后续更新管理。",
+      confirmLabel: "确认更新",
+      confirmColor: "warning",
+    });
+    expect(wrapper.emitted("install")).toEqual([["claude-code"]]);
+  });
+
+  it("does not emit install when takeover confirmation is cancelled", async () => {
+    confirmDialogMock.mockResolvedValue(false);
+
+    const wrapper = mounted({
+      managedBy: "user",
+      updateAvailable: true,
+    });
+
+    const updateButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().trim() === "更新");
+    expect(updateButton).toBeTruthy();
+
+    await updateButton!.trigger("click");
+
+    expect(wrapper.emitted("install")).toBeUndefined();
   });
 });

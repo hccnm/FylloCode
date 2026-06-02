@@ -19,6 +19,7 @@ const props = defineProps<{
       v-if="isReasoningUIPart(part)"
       :text="part.text"
       :streaming="isPartStreaming(part)"
+      :default-open="true"
     >
       <MarkStream
         :id="`${message.id}-${part.type}-${index}`"

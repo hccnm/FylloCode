@@ -78,18 +78,18 @@ function handleConfirm(): void {
 </script>
 
 <template>
-  <UModal v-model:open="open" :ui="{ content: 'max-w-2xl' }">
-    <template #content>
-      <div class="flex flex-col gap-4 p-5">
-        <header class="space-y-1">
-          <h2 class="text-base font-semibold text-highlighted">全部 Agents</h2>
-          <p class="text-xs text-muted">搜索、安装并切换不同的 ACP Agent</p>
-        </header>
-
+  <UModal
+    v-model:open="open"
+    title="全部 Agents"
+    description="搜索、安装并切换不同的 ACP Agent。"
+    :ui="{ content: 'max-w-2xl' }"
+  >
+    <template #body>
+      <div class="flex flex-col gap-4">
         <UInput v-model="search" size="sm" placeholder="按名称搜索..." icon="i-lucide-search" />
 
-        <div class="max-h-[60vh] space-y-5 overflow-y-auto pr-1">
-          <section v-if="installedAgents.length > 0" class="space-y-2">
+        <div class="space-y-4 pr-1">
+          <section v-if="installedAgents.length > 0" class="space-y-3">
             <div class="flex items-center gap-2">
               <h3 class="text-xs font-medium text-muted">已安装</h3>
               <span class="text-xs text-muted/60">{{ installedAgents.length }}</span>
@@ -108,7 +108,7 @@ function handleConfirm(): void {
             </div>
           </section>
 
-          <section v-if="notInstalledAgents.length > 0" class="space-y-2">
+          <section v-if="notInstalledAgents.length > 0" class="space-y-3">
             <div class="flex items-center gap-2">
               <h3 class="text-xs font-medium text-muted">未安装</h3>
               <span class="text-xs text-muted/60">{{ notInstalledAgents.length }}</span>
@@ -134,14 +134,12 @@ function handleConfirm(): void {
             没有匹配的 Agent
           </div>
         </div>
-
-        <footer class="flex items-center justify-end gap-2 pt-1">
-          <UButton variant="ghost" color="neutral" @click="handleCancel">取消</UButton>
-          <UButton color="primary" :disabled="confirmDisabled" @click="handleConfirm">
-            确定
-          </UButton>
-        </footer>
       </div>
+    </template>
+
+    <template #footer>
+      <UButton variant="ghost" color="neutral" @click="handleCancel">取消</UButton>
+      <UButton color="primary" :disabled="confirmDisabled" @click="handleConfirm">确定</UButton>
     </template>
   </UModal>
 </template>

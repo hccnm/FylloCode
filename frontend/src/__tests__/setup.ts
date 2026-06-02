@@ -93,13 +93,13 @@ config.global.stubs = {
   },
   UModal: {
     template:
-      '<div v-if="open"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="content" /><slot name="body" /><slot name="footer" /></div>',
-    props: ["open", "title", "description"],
+      '<div v-if="open !== false"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="content" /><slot name="body" /><slot name="footer" /></div>',
+    props: ["open", "title", "description", "dismissible"],
   },
   Modal: {
     template:
-      '<div v-if="open"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="content" /><slot name="body" /><slot name="footer" /></div>',
-    props: ["open", "title", "description"],
+      '<div v-if="open !== false"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="content" /><slot name="body" /><slot name="footer" /></div>',
+    props: ["open", "title", "description", "dismissible"],
   },
   UBadge: {
     template: "<span><slot /></span>",
