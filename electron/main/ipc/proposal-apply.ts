@@ -184,6 +184,9 @@ export function registerProposalApplyHandlers(): void {
               break;
             case "config_options_update":
               break;
+            case "plan_update":
+              // proposal/archive 流不展示 plan，显式忽略。
+              break;
             case "session_info_update":
             case "usage_update":
               break;
@@ -399,6 +402,9 @@ export function registerProposalApplyHandlers(): void {
             case "available_commands_update":
               break;
             case "config_options_update":
+              break;
+            case "plan_update":
+              // proposal/archive 流不展示 plan，显式忽略。
               break;
             case "session_info_update": {
               const chunk = toMessageChunk(ev);

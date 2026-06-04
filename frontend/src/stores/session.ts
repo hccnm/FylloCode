@@ -2,7 +2,13 @@ import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
 import { defineStore } from "pinia";
 import { useToast } from "@nuxt/ui/composables";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
-import type { AcpAvailableCommand, Message, Session, TokenUsage } from "@shared/types/chat";
+import type {
+  AcpAvailableCommand,
+  Message,
+  PlanEntry,
+  Session,
+  TokenUsage,
+} from "@shared/types/chat";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 import { chatApi } from "@renderer/api/chat";
 import { useAcpAgentsStore } from "./acp-agents";
@@ -61,6 +67,7 @@ export interface SessionStore {
   setSessionAgent: (agentId: string) => Promise<void>;
   setSessionAvailableCommands: (sessionId: string, commands: AcpAvailableCommand[]) => void;
   setSessionConfigOptions: (sessionId: string, options: AcpSessionConfigOption[]) => void;
+  setSessionPlan: (sessionId: string, entries: PlanEntry[]) => void;
   ensureDraftProbe: (agentId: string, projectId: string) => Promise<void>;
   closeDraftProbe: (agentId: string) => Promise<void>;
   setDraftConfigOption: (input: {
@@ -237,6 +244,17 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
 
     session.configOptions = options;
+  }
+
+  // plan 为运行时态：全量替换，不持久化。SerializedSession / normalizeSession /
+  // mergeSessionMeta 都不处理 plan 字段，重启后自然为 undefined。
+  function setSessionPlan(sessionId: string, entries: PlanEntry[]): void {
+    const session = findSession(sessionId);
+    if (!session) {
+      return;
+    }
+
+    session.plan = entries;
   }
 
   function setDraftProbe(agentId: string, snapshot: ProbeSnapshot): void {
@@ -565,6 +583,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     setSessionAgent,
     setSessionAvailableCommands,
     setSessionConfigOptions,
+    setSessionPlan,
     ensureDraftProbe,
     closeDraftProbe,
     setDraftConfigOption,

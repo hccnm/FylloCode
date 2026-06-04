@@ -714,6 +714,47 @@ describe("useChatStore", () => {
     expect(sessionStore.activeSession?.messages).toHaveLength(1);
   });
 
+  it("routes plan_update to the session store without touching the assembler path", async () => {
+    const acpAgentsStore = useAcpAgentsStore();
+    acpAgentsStore.registry = mockRegistry;
+    acpAgentsStore.statuses = mockStatuses;
+
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project 1",
+      path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
+      createdAt: new Date("2026-04-30T08:00:00.000Z"),
+      lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
+    };
+
+    let callbacks: StreamCallbacks | null = null;
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+        callbacks = nextCallbacks;
+        return () => {};
+      }
+    );
+
+    const sessionStore = useSessionStore();
+    const setSessionPlanSpy = vi.spyOn(sessionStore, "setSessionPlan");
+    sessionStore.beginDraftSession();
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage(textParts("hello world"));
+
+    callbacks!.onChunk({
+      kind: "plan_update",
+      entries: [{ content: "分析代码", priority: "high", status: "in_progress" }],
+    });
+
+    expect(setSessionPlanSpy).toHaveBeenCalledWith("session-1", [
+      { content: "分析代码", priority: "high", status: "in_progress" },
+    ]);
+    expect(sessionStore.activeSession?.messages).toHaveLength(1);
+  });
+
   it("routes reasoning_delta through the default assembler path", async () => {
     const acpAgentsStore = useAcpAgentsStore();
     acpAgentsStore.registry = mockRegistry;

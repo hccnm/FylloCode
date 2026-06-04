@@ -28,6 +28,12 @@ export interface AcpAvailableCommand {
   hint?: string;
 }
 
+export interface PlanEntry {
+  content: string;
+  priority: "high" | "medium" | "low";
+  status: "pending" | "in_progress" | "completed";
+}
+
 export interface Session {
   id: string;
   projectId: string;
@@ -41,6 +47,8 @@ export interface Session {
   messages: Message[];
   availableCommands?: AcpAvailableCommand[];
   configOptions?: AcpSessionConfigOption[];
+  // 运行时态：ACP 执行计划，全量替换、不持久化（不写入 session meta）。
+  plan?: PlanEntry[];
 }
 
 export type ProjectAgent = ChatAgent;

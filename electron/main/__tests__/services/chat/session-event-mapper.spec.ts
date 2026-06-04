@@ -107,6 +107,17 @@ describe("toMessageChunk", () => {
     expect(chunk && "options" in chunk ? chunk.options : null).toBe(options);
   });
 
+  it("maps plan_update without cloning", () => {
+    const entries = [
+      { content: "分析代码", priority: "high" as const, status: "completed" as const },
+      { content: "写测试", priority: "medium" as const, status: "in_progress" as const },
+    ];
+    const ev: SessionEvent = { type: "plan_update", entries };
+    const chunk = toMessageChunk(ev);
+    expect(chunk).toEqual({ kind: "plan_update", entries });
+    expect(chunk && "entries" in chunk ? chunk.entries : null).toBe(entries);
+  });
+
   it("returns null for terminal / internal events", () => {
     expect(toMessageChunk({ type: "done", totalTokens: 42 } as SessionEvent)).toBeNull();
     expect(

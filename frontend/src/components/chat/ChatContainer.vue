@@ -8,6 +8,7 @@ import ChatMessageSkeleton from "@renderer/components/chat/message/ChatMessageSk
 import ChatEmptyAgentPicker from "./empty/ChatEmptyAgentPicker.vue";
 import ChatStreamError from "./ChatStreamError.vue";
 import ChatPromptPanel from "./prompt/ChatPromptPanel.vue";
+import ChatPlanPanel from "./plan/ChatPlanPanel.vue";
 
 const store = useChatStore();
 const { chatStatus, streamError } = storeToRefs(store);
@@ -41,6 +42,7 @@ const isDraft = computed(() => activeSessionId.value === null);
 
     <div>
       <div class="max-w-3xl mx-auto">
+        <ChatPlanPanel v-if="!isDraft" :entries="activeSession?.plan ?? []" />
         <ChatPromptPanel />
       </div>
     </div>

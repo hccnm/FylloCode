@@ -36,6 +36,8 @@ export function toMessageChunk(ev: SessionEvent): MessageChunkData | null {
       return { kind: "session_info_update", title: ev.title };
     case "available_commands_update":
       return { kind: "available_commands_update", commands: ev.commands };
+    case "plan_update":
+      return { kind: "plan_update", entries: ev.entries };
     case "config_options_update":
       return { kind: "config_options_update", options: ev.options };
     case "session_id_resolved":

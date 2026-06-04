@@ -5,7 +5,7 @@ import type {
   AcpSessionConfigOptionGroup,
   AcpSessionConfigOptionValueItem,
 } from "@shared/types/acp-config";
-import type { AcpAvailableCommand } from "@shared/types/chat";
+import type { AcpAvailableCommand, PlanEntry } from "@shared/types/chat";
 import logger from "@main/infra/logger";
 
 export function normalizeAvailableCommands(
@@ -18,6 +18,27 @@ export function normalizeAvailableCommands(
       command.input != null && typeof command.input.hint === "string"
         ? command.input.hint
         : undefined,
+  }));
+}
+
+const PLAN_PRIORITIES: ReadonlySet<PlanEntry["priority"]> = new Set(["high", "medium", "low"]);
+const PLAN_STATUSES: ReadonlySet<PlanEntry["status"]> = new Set([
+  "pending",
+  "in_progress",
+  "completed",
+]);
+
+export function normalizePlanEntries(
+  update: Extract<SessionUpdate, { sessionUpdate: "plan" }>
+): PlanEntry[] {
+  return update.entries.map((entry) => ({
+    content: entry.content,
+    priority: PLAN_PRIORITIES.has(entry.priority as PlanEntry["priority"])
+      ? (entry.priority as PlanEntry["priority"])
+      : "medium",
+    status: PLAN_STATUSES.has(entry.status as PlanEntry["status"])
+      ? (entry.status as PlanEntry["status"])
+      : "pending",
   }));
 }
 
@@ -171,6 +192,15 @@ export function mapSessionUpdate(update: SessionUpdate): SessionEvent | null {
       const event: SessionEvent = {
         type: "available_commands_update",
         commands: normalizeAvailableCommands(update),
+      };
+      logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
+      return event;
+    }
+
+    case "plan": {
+      const event: SessionEvent = {
+        type: "plan_update",
+        entries: normalizePlanEntries(update),
       };
       logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
       return event;

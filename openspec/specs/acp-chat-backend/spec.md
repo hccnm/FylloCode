@@ -258,6 +258,8 @@ ACP `agent_thought_chunk` 与 `agent_message_chunk` 语义对称（同为 `Conte
 
 ACP `available_commands_update` 是 session 级 slash 命令声明（`{ availableCommands: AvailableCommand[] }`），与单条消息流动无关，映射为独立 `SessionEvent` 成员，不进入 `MessageAssembler` 的消息组装通路。
 
+ACP `plan` 是 session 级执行计划广播（`{ entries: PlanEntry[] }`），每次推送都是完整条目列表的全量替换（ACP 协议规定 agent MUST 发送完整列表、client MUST 整体替换），与单条消息流动无关，映射为独立 `SessionEvent` 成员，不进入 `MessageAssembler` 的消息组装通路，也不持久化。
+
 **`SessionEvent` 联合类型定义（替换旧定义）：**
 
 ```typescript
@@ -265,6 +267,12 @@ type AcpAvailableCommand = {
   name: string;
   description: string;
   hint?: string;
+};
+
+type PlanEntry = {
+  content: string;
+  priority: "high" | "medium" | "low";
+  status: "pending" | "in_progress" | "completed";
 };
 
 type SessionEvent =
@@ -286,6 +294,7 @@ type SessionEvent =
     }
   | { type: "session_info_update"; title: string }
   | { type: "available_commands_update"; commands: AcpAvailableCommand[] }
+  | { type: "plan_update"; entries: PlanEntry[] }
   | { type: "done"; totalTokens: number }
   | { type: "error"; code: string; message: string }
   | { type: "session_id_resolved"; acpSessionId: string };
@@ -337,6 +346,14 @@ type SessionEvent =
 - **AND** 产出 `SessionEvent { type: "available_commands_update", commands: AcpAvailableCommand[] }`
 - **AND** 即使 `availableCommands` 为空数组，仍产出事件（用于告知下游"agent 明确声明无可用命令"）
 
+#### Scenario: 执行计划推送
+
+- **WHEN** ACP 推送 `sessionUpdate === "plan"`，携带 `entries` 数组
+- **THEN** `acp-mapper` 遍历 `entries`，对每条仅取 `content`（string）、`priority`（`"high" | "medium" | "low"`）、`status`（`"pending" | "in_progress" | "completed"`）
+- **AND** 丢弃 `_meta` 与其他未识别字段
+- **AND** 产出 `SessionEvent { type: "plan_update", entries: PlanEntry[] }`
+- **AND** 即使 `entries` 为空数组，仍产出事件（client 据此整体替换为"无计划"）
+
 #### Scenario: prompt 完成
 
 - **WHEN** `connection.prompt` 返回（`stopReason` 为 `"end_turn"` 或其他终止原因）
@@ -351,7 +368,7 @@ type SessionEvent =
 
 #### Scenario: 未识别 sessionUpdate 类型
 
-- **WHEN** ACP 推送其他未识别的 `sessionUpdate` 类型（例如 `plan`、`user_message_chunk`、`current_mode_update` 等协议将来扩展的类型）
+- **WHEN** ACP 推送其他未识别的 `sessionUpdate` 类型（例如 `user_message_chunk`、`current_mode_update` 等协议将来扩展的类型）
 - **THEN** `acp-mapper` 在 default 分支记录 debug 日志，返回 `null`，不产生任何下游 chunk
 
 ### Requirement: 前端 chat store 从流式事件组装 assistant UIMessage
@@ -367,6 +384,7 @@ type SessionEvent =
 - 收到 `tool_call_update`（completed/failed）时，找到对应 `toolCallId` 的 `dynamic-tool` part，更新 `state` 为 `"output-available"`，写入 `output: content`
 - 收到 `usage_update` 时，更新 `activeSession.tokenUsage`
 - 收到 `available_commands_update` 时，**不触碰消息容器**，调用 `useSessionStore().setSessionAvailableCommands(activeSession.id, commands)` 写入会话级字段
+- 收到 `plan_update` 时，**不触碰消息容器**，调用 `useSessionStore().setSessionPlan(activeSession.id, entries)` 覆盖会话级内存态 `Session.plan` 字段（不持久化）
 - 收到 `done` 时，清空 `activeAssistantId`、`activeTextPartIdx`、`activeReasoningPartIdx`
 
 **`MessageChunkData` 类型（替换旧定义）：**
@@ -392,6 +410,7 @@ type MessageChunkData =
   | { kind: "session_info_update"; title: string }
   | { kind: "user_message"; message: UIMessage<MessageMeta> }
   | { kind: "available_commands_update"; commands: AcpAvailableCommand[] }
+  | { kind: "plan_update"; entries: PlanEntry[] }
   | { kind: "status"; agentStatus: ChatStatus };
 ```
 
@@ -441,6 +460,13 @@ type MessageChunkData =
 - **THEN** 不经过 `useUIMessageAssembler`，不修改 `activeSession.messages`
 - **AND** 调用 `useSessionStore().setSessionAvailableCommands(activeSession.id, commands)`，将 commands 覆盖到 session 的内存态字段
 - **AND** `commands` 为空数组时也会原样覆盖，使 UI 可据此判定"agent 明确声明无命令"
+
+#### Scenario: 流式收到 plan_update
+
+- **WHEN** 前端 chat store 在 `streamSessionMessage.onChunk` 中收到 `{ kind: "plan_update", entries }`
+- **THEN** 不经过 `useUIMessageAssembler`，不修改 `activeSession.messages`
+- **AND** 调用 `useSessionStore().setSessionPlan(activeSession.id, entries)`，将 entries 覆盖到 `Session.plan` 内存态字段
+- **AND** `entries` 为空数组时也原样覆盖，使面板据此清空展示
 
 ### Requirement: Main 进程在 chat stream done 时组装并持久化 assistant UIMessage
 

@@ -1,5 +1,5 @@
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
-import type { AcpAvailableCommand, Message } from "@shared/types/chat";
+import type { AcpAvailableCommand, Message, PlanEntry } from "@shared/types/chat";
 
 export type SessionEvent =
   | { type: "text_delta"; text: string }
@@ -20,6 +20,7 @@ export type SessionEvent =
     }
   | { type: "session_info_update"; title: string }
   | { type: "available_commands_update"; commands: AcpAvailableCommand[] }
+  | { type: "plan_update"; entries: PlanEntry[] }
   | { type: "config_options_update"; options: AcpSessionConfigOption[] }
   | { type: "done"; totalTokens: number }
   | { type: "error"; code: string; message: string }

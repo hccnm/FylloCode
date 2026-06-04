@@ -106,6 +106,57 @@ describe("mapSessionUpdate", () => {
     });
   });
 
+  describe("plan", () => {
+    it("maps entries to plan_update keeping only content/priority/status", () => {
+      const update = {
+        sessionUpdate: "plan",
+        entries: [
+          {
+            content: "分析现有代码结构",
+            priority: "high",
+            status: "completed",
+            _meta: { ignored: true },
+          },
+          { content: "编写单元测试", priority: "medium", status: "in_progress" },
+          { content: "提交 PR", priority: "low", status: "pending" },
+        ],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toEqual({
+        type: "plan_update",
+        entries: [
+          { content: "分析现有代码结构", priority: "high", status: "completed" },
+          { content: "编写单元测试", priority: "medium", status: "in_progress" },
+          { content: "提交 PR", priority: "low", status: "pending" },
+        ],
+      });
+    });
+
+    it("keeps empty entry arrays", () => {
+      const update = {
+        sessionUpdate: "plan",
+        entries: [],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toEqual({
+        type: "plan_update",
+        entries: [],
+      });
+    });
+
+    it("falls back to medium/pending for unrecognized priority/status", () => {
+      const update = {
+        sessionUpdate: "plan",
+        entries: [{ content: "未知字段", priority: "urgent", status: "blocked" }],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toEqual({
+        type: "plan_update",
+        entries: [{ content: "未知字段", priority: "medium", status: "pending" }],
+      });
+    });
+  });
+
   it("maps usage_update events", () => {
     const update = {
       sessionUpdate: "usage_update",

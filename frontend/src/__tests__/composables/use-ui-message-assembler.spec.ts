@@ -124,4 +124,16 @@ describe("useUIMessageAssembler", () => {
 
     expect(messages.value).toHaveLength(0);
   });
+
+  it("ignores plan_update chunks", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages);
+
+    assembler.applyChunk({
+      kind: "plan_update",
+      entries: [{ content: "分析代码", priority: "high", status: "pending" }],
+    });
+
+    expect(messages.value).toHaveLength(0);
+  });
 });
