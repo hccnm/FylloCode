@@ -52,6 +52,15 @@ export const createSessionInputSchema = z.object({
   title: z.string().min(1),
   agentId: z.string().min(1),
   configOptions: z.array(z.unknown()).optional(),
+  availableCommands: z
+    .array(
+      z.object({
+        name: z.string(),
+        description: z.string(),
+        hint: z.string().optional(),
+      })
+    )
+    .optional(),
   acpSessionId: z.string().min(1).optional(),
 });
 

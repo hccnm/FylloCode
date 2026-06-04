@@ -726,6 +726,7 @@ describe("registerChatHandlers", () => {
       status: "ready",
       acpSessionId: "acp-probe",
       configOptions,
+      availableCommands: [{ name: "review", description: "Review code" }],
       startedAt: Date.now(),
     });
 
@@ -755,6 +756,7 @@ describe("registerChatHandlers", () => {
         acpSessionId: "acp-probe",
         agentId: "claude-acp",
         configOptions: configOptions,
+        available_commands: [{ name: "review", description: "Review code" }],
       })
     );
     const acpSessionMock = vi.mocked((await import("@main/services/chat/acp-session")).AcpSession);

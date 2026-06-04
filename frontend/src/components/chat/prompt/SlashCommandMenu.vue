@@ -63,15 +63,24 @@ function handleCommandSelect(item: unknown): void {
     @update:open="emit('update:open', $event)"
   >
     <template #default>
-      <UButton
-        v-if="hasAvailableCommands"
-        data-test="slash-button"
-        variant="ghost"
-        size="sm"
-        color="neutral"
-        icon="i-lucide-command"
-        @click="emit('button-trigger')"
-      />
+      <Transition
+        enter-active-class="transition duration-150 ease-out"
+        enter-from-class="opacity-0 translate-y-1"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition duration-150 ease-out"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-1"
+      >
+        <UButton
+          v-if="hasAvailableCommands"
+          data-test="slash-button"
+          variant="ghost"
+          size="sm"
+          color="neutral"
+          icon="i-lucide-command"
+          @click="emit('button-trigger')"
+        />
+      </Transition>
     </template>
 
     <template #content>

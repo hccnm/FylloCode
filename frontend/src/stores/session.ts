@@ -32,6 +32,7 @@ export interface DraftProbeState {
   status: DraftProbeStatus;
   acpSessionId: string | null;
   configOptions: AcpSessionConfigOption[];
+  availableCommands: AcpAvailableCommand[];
   error?: { code: string; message: string };
 }
 
@@ -50,6 +51,7 @@ export interface SessionStore {
     agentId: string;
     title?: string;
     configOptions?: AcpSessionConfigOption[];
+    availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
   }) => Promise<Session>;
   beginDraftSession: () => void;
@@ -243,6 +245,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       status: snapshot.status,
       acpSessionId: snapshot.acpSessionId,
       configOptions: snapshot.configOptions,
+      availableCommands: snapshot.availableCommands,
       error: snapshot.error,
     });
   }
@@ -254,6 +257,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       status: "starting",
       acpSessionId: null,
       configOptions: [],
+      availableCommands: [],
     });
     draftProbeByAgent.value = starting;
 
@@ -269,6 +273,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
         status: "failed",
         acpSessionId: null,
         configOptions: [],
+        availableCommands: [],
         error: result.error,
       });
     } catch (error: unknown) {
@@ -277,6 +282,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
         status: "failed",
         acpSessionId: null,
         configOptions: [],
+        availableCommands: [],
         error: {
           code: "PROBE_ENSURE_FAILED",
           message: error instanceof Error ? error.message : String(error),
@@ -389,6 +395,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     agentId: string;
     title?: string;
     configOptions?: AcpSessionConfigOption[];
+    availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
   }): Promise<Session> {
     const result = await chatApi.createSession({
@@ -396,6 +403,9 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       title: input.title ?? "New Session",
       agentId: input.agentId,
       ...(input.configOptions !== undefined ? { configOptions: input.configOptions } : {}),
+      ...(input.availableCommands !== undefined
+        ? { availableCommands: input.availableCommands }
+        : {}),
       ...(input.acpSessionId ? { acpSessionId: input.acpSessionId } : {}),
     });
     if (!result.ok) {

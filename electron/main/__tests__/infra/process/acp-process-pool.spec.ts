@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
   return {
     initialize,
     child: undefined as unknown,
+    capturedClient: undefined as { sessionUpdate: (n: unknown) => unknown } | undefined,
     spawn: vi.fn(),
     readInstalledRecords: vi.fn(),
     getRegistry: vi.fn(),
@@ -34,7 +35,9 @@ vi.mock("@main/bootstrap/lifecycle", () => ({
 vi.mock("@agentclientprotocol/sdk", () => ({
   PROTOCOL_VERSION: 1,
   ndJsonStream: vi.fn(() => ({ transport: true })),
-  ClientSideConnection: vi.fn(function () {
+  ClientSideConnection: vi.fn(function (toClient: (agent: unknown) => unknown) {
+    // Capture the client object so tests can drive sessionUpdate routing.
+    mocks.capturedClient = toClient({}) as { sessionUpdate: (n: unknown) => unknown };
     return {
       initialize: mocks.initialize,
       closeSession: vi.fn().mockResolvedValue(undefined),
@@ -325,5 +328,64 @@ describe("acp-process-pool", () => {
     expect(killSpy).not.toHaveBeenCalled();
 
     killSpy.mockRestore();
+  });
+
+  describe("sessionUpdate routing", () => {
+    it("dispatches to the precise sessionId handler when registered", async () => {
+      const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+      const entry = await getOrStartProcess("claude-acp");
+      const preciseHandler = vi.fn();
+      entry.sessionHandlers.set("sess-1", preciseHandler);
+
+      const notification = { sessionId: "sess-1", update: { sessionUpdate: "x" } };
+      await mocks.capturedClient!.sessionUpdate(notification);
+
+      expect(preciseHandler).toHaveBeenCalledWith(notification);
+    });
+
+    it("falls back to pendingProbeHandler when no precise handler exists", async () => {
+      const { getOrStartProcess, setPendingProbeHandler } =
+        await import("@main/infra/process/acp-process-pool");
+      await getOrStartProcess("claude-acp");
+      const probeHandler = vi.fn();
+      setPendingProbeHandler("claude-acp", probeHandler);
+
+      const notification = { sessionId: "sess-1", update: { sessionUpdate: "x" } };
+      await mocks.capturedClient!.sessionUpdate(notification);
+
+      expect(probeHandler).toHaveBeenCalledWith(notification);
+    });
+
+    it("does not invoke pendingProbeHandler once a precise handler is registered", async () => {
+      const { getOrStartProcess, setPendingProbeHandler } =
+        await import("@main/infra/process/acp-process-pool");
+      const entry = await getOrStartProcess("claude-acp");
+      const probeHandler = vi.fn();
+      const preciseHandler = vi.fn();
+      setPendingProbeHandler("claude-acp", probeHandler);
+      entry.sessionHandlers.set("sess-1", preciseHandler);
+
+      const notification = { sessionId: "sess-1", update: { sessionUpdate: "x" } };
+      await mocks.capturedClient!.sessionUpdate(notification);
+
+      expect(preciseHandler).toHaveBeenCalledWith(notification);
+      expect(probeHandler).not.toHaveBeenCalled();
+    });
+
+    it("does not fall back after clearPendingProbeHandler", async () => {
+      const { getOrStartProcess, setPendingProbeHandler, clearPendingProbeHandler } =
+        await import("@main/infra/process/acp-process-pool");
+      await getOrStartProcess("claude-acp");
+      const probeHandler = vi.fn();
+      setPendingProbeHandler("claude-acp", probeHandler);
+      clearPendingProbeHandler("claude-acp");
+
+      await mocks.capturedClient!.sessionUpdate({
+        sessionId: "sess-1",
+        update: { sessionUpdate: "x" },
+      });
+
+      expect(probeHandler).not.toHaveBeenCalled();
+    });
   });
 });

@@ -111,6 +111,7 @@ describe("chat-service", () => {
       title: "draft",
       agentId: "claude-acp",
       configOptions: probeOptions,
+      availableCommands: [{ name: "review", description: "Review code" }],
       acpSessionId: "sess-A",
     });
 
@@ -119,7 +120,26 @@ describe("chat-service", () => {
     expect(persistedMeta.configOptions).toEqual([
       expect.objectContaining({ id: "model", currentValue: "sonnet" }),
     ]);
+    expect(persistedMeta.available_commands).toEqual([
+      { name: "review", description: "Review code" },
+    ]);
     expect(session.configOptions).toEqual(persistedMeta.configOptions);
+    expect(session.availableCommands).toEqual(persistedMeta.available_commands);
+  });
+
+  it("createSession persists available_commands empty array without folding to undefined", async () => {
+    mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
+
+    const session = await createSession({
+      projectId: "project-1",
+      title: "draft",
+      agentId: "claude-acp",
+      availableCommands: [],
+    });
+
+    const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
+    expect(persistedMeta.available_commands).toEqual([]);
+    expect(session.availableCommands).toEqual([]);
   });
 
   it("createSession leaves probe fields unset when caller omits them", async () => {
@@ -134,6 +154,8 @@ describe("chat-service", () => {
     const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
     expect(persistedMeta.acpSessionId).toBeUndefined();
     expect(persistedMeta.configOptions).toBeUndefined();
+    expect(persistedMeta.available_commands).toBeUndefined();
     expect(session.configOptions).toBeUndefined();
+    expect(session.availableCommands).toBeUndefined();
   });
 });

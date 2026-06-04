@@ -1,16 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SessionNotification } from "@agentclientprotocol/sdk";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { sessionProbeRegistry } from "@main/services/chat/session-probe-registry";
 import { sessionProbeBus } from "@main/services/chat/session-probe-bus";
 
 const mocks = vi.hoisted(() => ({
   agentUnavailableListener: null as ((event: { agentId: string; reason: string }) => void) | null,
+  pendingProbeHandlers: new Map<string, (notification: SessionNotification) => void>(),
   getOrStartProcess: vi.fn(),
   getBundledMcpServers: vi.fn(),
   toAcpMcpServerEnv: vi.fn(),
   onAgentUnavailable: vi.fn((listener: (event: { agentId: string; reason: string }) => void) => {
     mocks.agentUnavailableListener = listener;
     return vi.fn();
+  }),
+  setPendingProbeHandler: vi.fn(
+    (agentId: string, handler: (notification: SessionNotification) => void) => {
+      mocks.pendingProbeHandlers.set(agentId, handler);
+    }
+  ),
+  clearPendingProbeHandler: vi.fn((agentId: string) => {
+    mocks.pendingProbeHandlers.delete(agentId);
   }),
   newSession: vi.fn(),
   closeSession: vi.fn(),
@@ -26,6 +36,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
   onAgentUnavailable: mocks.onAgentUnavailable,
+  setPendingProbeHandler: mocks.setPendingProbeHandler,
+  clearPendingProbeHandler: mocks.clearPendingProbeHandler,
 }));
 
 vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
@@ -49,6 +61,7 @@ function agentUnavailableListener(): (event: { agentId: string; reason: string }
 describe("session-probe-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.pendingProbeHandlers.clear();
     for (const key of sessionProbeRegistry.keys()) {
       sessionProbeRegistry.delete(key);
     }
@@ -211,5 +224,118 @@ describe("session-probe-service", () => {
     expect(onUpdate).toHaveBeenCalledWith({ agentId: "claude-code", snapshot: null });
 
     sessionProbeBus.offUpdate(onUpdate);
+  });
+
+  it("registers a probe handler before newSession and ready snapshot starts with empty commands", async () => {
+    const { ensureProbe } = await import("@main/services/chat/session-probe-service");
+    const callOrder: string[] = [];
+    mocks.setPendingProbeHandler.mockImplementationOnce(
+      (agentId: string, handler: (notification: SessionNotification) => void) => {
+        callOrder.push("setPendingProbeHandler");
+        mocks.pendingProbeHandlers.set(agentId, handler);
+      }
+    );
+    mocks.newSession.mockImplementationOnce(async () => {
+      callOrder.push("newSession");
+      return { sessionId: "acp-1", configOptions: [] };
+    });
+
+    const snapshot = await ensureProbe("claude-code", "/tmp/project");
+
+    expect(callOrder).toEqual(["setPendingProbeHandler", "newSession"]);
+    expect(mocks.pendingProbeHandlers.has("claude-code")).toBe(true);
+    expect(snapshot.availableCommands).toEqual([]);
+  });
+
+  it("updates the entry and re-emits when the probe handler receives available_commands_update", async () => {
+    const { ensureProbe } = await import("@main/services/chat/session-probe-service");
+    await ensureProbe("claude-code", "/tmp/project");
+
+    const updates: unknown[] = [];
+    const onUpdate = vi.fn((payload) => updates.push(payload));
+    sessionProbeBus.onUpdate(onUpdate);
+
+    const handler = mocks.pendingProbeHandlers.get("claude-code");
+    expect(handler).toBeTypeOf("function");
+    handler?.({
+      sessionId: "acp-1",
+      update: {
+        sessionUpdate: "available_commands_update",
+        availableCommands: [
+          { name: "init", description: "Initialize", input: { hint: "path" } },
+          { name: "review", description: "Review" },
+        ],
+      },
+    } as unknown as SessionNotification);
+
+    expect(sessionProbeRegistry.get("claude-code")?.availableCommands).toEqual([
+      { name: "init", description: "Initialize", hint: "path" },
+      { name: "review", description: "Review", hint: undefined },
+    ]);
+    expect(updates).toEqual([
+      expect.objectContaining({
+        agentId: "claude-code",
+        snapshot: expect.objectContaining({
+          availableCommands: [
+            { name: "init", description: "Initialize", hint: "path" },
+            { name: "review", description: "Review", hint: undefined },
+          ],
+        }),
+      }),
+    ]);
+
+    sessionProbeBus.offUpdate(onUpdate);
+  });
+
+  it("broadcasts an empty array when the agent declares no commands", async () => {
+    const { ensureProbe } = await import("@main/services/chat/session-probe-service");
+    await ensureProbe("claude-code", "/tmp/project");
+
+    const updates: unknown[] = [];
+    const onUpdate = vi.fn((payload) => updates.push(payload));
+    sessionProbeBus.onUpdate(onUpdate);
+
+    mocks.pendingProbeHandlers.get("claude-code")?.({
+      sessionId: "acp-1",
+      update: { sessionUpdate: "available_commands_update", availableCommands: [] },
+    } as unknown as SessionNotification);
+
+    expect(sessionProbeRegistry.get("claude-code")?.availableCommands).toEqual([]);
+    expect(updates).toEqual([
+      expect.objectContaining({
+        snapshot: expect.objectContaining({ availableCommands: [] }),
+      }),
+    ]);
+
+    sessionProbeBus.offUpdate(onUpdate);
+  });
+
+  it("ignores message-stream events in the probe handler", async () => {
+    const { ensureProbe } = await import("@main/services/chat/session-probe-service");
+    await ensureProbe("claude-code", "/tmp/project");
+
+    const onUpdate = vi.fn();
+    sessionProbeBus.onUpdate(onUpdate);
+
+    mocks.pendingProbeHandlers.get("claude-code")?.({
+      sessionId: "acp-1",
+      update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hi" } },
+    } as unknown as SessionNotification);
+
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(sessionProbeRegistry.get("claude-code")?.availableCommands).toEqual([]);
+
+    sessionProbeBus.offUpdate(onUpdate);
+  });
+
+  it("clears the pending probe handler on close", async () => {
+    const { ensureProbe, closeProbe } = await import("@main/services/chat/session-probe-service");
+    await ensureProbe("claude-code", "/tmp/project");
+    expect(mocks.pendingProbeHandlers.has("claude-code")).toBe(true);
+
+    await closeProbe("claude-code");
+
+    expect(mocks.clearPendingProbeHandler).toHaveBeenCalledWith("claude-code");
+    expect(mocks.pendingProbeHandlers.has("claude-code")).toBe(false);
   });
 });

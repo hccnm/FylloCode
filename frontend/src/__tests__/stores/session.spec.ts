@@ -61,6 +61,7 @@ describe("useSessionStore", () => {
         status: "ready",
         acpSessionId: "acp-1",
         configOptions: [],
+        availableCommands: [{ name: "init", description: "Initialize" }],
       },
     });
     mocks.probeClose.mockResolvedValue({ ok: true, data: undefined });
@@ -211,6 +212,31 @@ describe("useSessionStore", () => {
     });
   });
 
+  it("ensureDraftProbe carries availableCommands from the probe snapshot", async () => {
+    const store = useSessionStore();
+
+    await store.ensureDraftProbe("claude-code", "project-1");
+
+    expect(store.draftProbeByAgent.get("claude-code")?.availableCommands).toEqual([
+      { name: "init", description: "Initialize" },
+    ]);
+  });
+
+  it("applyProbeUpdate writes availableCommands into the draft probe state", () => {
+    const store = useSessionStore();
+    store.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-1",
+      configOptions: [],
+      availableCommands: [{ name: "review", description: "Review code" }],
+    });
+
+    expect(store.draftProbeByAgent.get("claude-code")?.availableCommands).toEqual([
+      { name: "review", description: "Review code" },
+    ]);
+  });
+
   it("closeDraftProbe clears local state before awaiting IPC", async () => {
     const store = useSessionStore();
     store.applyProbeUpdate("claude-code", {
@@ -218,6 +244,7 @@ describe("useSessionStore", () => {
       status: "ready",
       acpSessionId: "acp-1",
       configOptions: [],
+      availableCommands: [],
     });
 
     const promise = store.closeDraftProbe("claude-code");
@@ -246,6 +273,7 @@ describe("useSessionStore", () => {
           ],
         },
       ],
+      availableCommands: [],
     });
 
     const promise = store.setDraftConfigOption({
@@ -291,6 +319,7 @@ describe("useSessionStore", () => {
       status: "ready",
       acpSessionId: "acp-1",
       configOptions: [],
+      availableCommands: [],
     });
 
     store.setDraftAgent("claude-code");

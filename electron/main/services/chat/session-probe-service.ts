@@ -1,12 +1,17 @@
-import type { ClientSideConnection } from "@agentclientprotocol/sdk";
+import type { ClientSideConnection, SessionNotification } from "@agentclientprotocol/sdk";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
-import { getOrStartProcess, onAgentUnavailable } from "@main/infra/process/acp-process-pool";
+import {
+  clearPendingProbeHandler,
+  getOrStartProcess,
+  onAgentUnavailable,
+  setPendingProbeHandler,
+} from "@main/infra/process/acp-process-pool";
 import { getBundledMcpServers, toAcpMcpServerEnv } from "@main/infra/mcp/bundled-mcp-servers";
 import logger from "@main/infra/logger";
-import { normalizeAcpSessionConfigOptions } from "./acp-mapper";
+import { normalizeAcpSessionConfigOptions, normalizeAvailableCommands } from "./acp-mapper";
 import { buildPayload, isMethodNotFoundError, valueExistsInSchema } from "./acp-config-option-rpc";
 import type { ProbeEntry } from "./session-probe-registry";
 import { sessionProbeRegistry, toProbeSnapshot } from "./session-probe-registry";
@@ -42,12 +47,35 @@ function setFailedEntry(agentId: string, error: unknown): ProbeEntry {
     status: "failed",
     acpSessionId: null,
     configOptions: [],
+    availableCommands: [],
     error: normalizeError(error),
     startedAt: Date.now(),
   };
   sessionProbeRegistry.set(agentId, entry);
   emitUpdate(agentId, toProbeSnapshot(entry));
   return entry;
+}
+
+/**
+ * Build the probe-only fallback handler for a given agent. It only reacts to
+ * session-level metadata (available_commands_update); all message-stream events
+ * (agent_message_chunk, tool_call, etc.) are ignored because the draft idle
+ * window never carries them. On a command update it normalizes the commands,
+ * patches the current registry entry, and broadcasts the new snapshot.
+ */
+function createProbeHandler(agentId: string): (notification: SessionNotification) => void {
+  return (notification: SessionNotification): void => {
+    if (notification.update.sessionUpdate !== "available_commands_update") {
+      return;
+    }
+    const entry = sessionProbeRegistry.get(agentId);
+    if (!entry) {
+      return;
+    }
+    entry.availableCommands = normalizeAvailableCommands(notification.update);
+    sessionProbeRegistry.set(agentId, entry);
+    emitUpdate(agentId, toProbeSnapshot(entry));
+  };
 }
 
 async function getConnection(agentId: string): Promise<ClientSideConnection> {
@@ -79,6 +107,7 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
     status: "starting",
     acpSessionId: null,
     configOptions: [],
+    availableCommands: [],
     startedAt: Date.now(),
   };
   sessionProbeRegistry.set(agentId, startingEntry);
@@ -90,12 +119,21 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
         ...spec,
         env: toAcpMcpServerEnv(spec.env),
       }));
+      // Register the probe handler BEFORE newSession: claude-acp pushes
+      // available_commands_update via setTimeout(0) right after newSession
+      // returns, so the handler must already be in place to catch it.
+      setPendingProbeHandler(agentId, createProbeHandler(agentId));
       const response = await connection.newSession({ cwd: projectPath, mcpServers });
+      const current = sessionProbeRegistry.get(agentId);
       const readyEntry: ProbeEntry = {
         agentId,
         status: "ready",
         acpSessionId: response.sessionId,
         configOptions: normalizeAcpSessionConfigOptions(response.configOptions),
+        // Carry whatever the probe handler has already accumulated. The commands
+        // usually arrive asynchronously after newSession returns, so this is
+        // often still [] here; the handler re-emits once they land.
+        availableCommands: current?.availableCommands ?? [],
         startedAt: startingEntry.startedAt,
       };
       sessionProbeRegistry.set(agentId, readyEntry);
@@ -116,6 +154,9 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
 
 export async function closeProbe(agentId: string): Promise<void> {
   const entry = sessionProbeRegistry.delete(agentId);
+  // Always clear the probe fallback handler so it does not leak after close,
+  // even when no ready session exists to close.
+  clearPendingProbeHandler(agentId);
   emitUpdate(agentId, null);
   if (!entry || entry.status !== "ready" || entry.acpSessionId === null) {
     return;

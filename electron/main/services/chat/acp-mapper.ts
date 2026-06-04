@@ -8,7 +8,7 @@ import type {
 import type { AcpAvailableCommand } from "@shared/types/chat";
 import logger from "@main/infra/logger";
 
-function normalizeAvailableCommands(
+export function normalizeAvailableCommands(
   update: Extract<SessionUpdate, { sessionUpdate: "available_commands_update" }>
 ): AcpAvailableCommand[] {
   return update.availableCommands.map((command) => ({

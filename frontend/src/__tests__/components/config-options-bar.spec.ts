@@ -128,6 +128,7 @@ describe("ConfigOptionsBar", () => {
       agentId: "claude-code",
       status: "ready",
       acpSessionId: "acp-1",
+      availableCommands: [],
       configOptions: [
         {
           type: "select",
@@ -152,6 +153,7 @@ describe("ConfigOptionsBar", () => {
       agentId: "claude-code",
       status: "starting",
       acpSessionId: null,
+      availableCommands: [],
       configOptions: [
         {
           type: "select",
@@ -170,6 +172,7 @@ describe("ConfigOptionsBar", () => {
       agentId: "claude-code",
       status: "failed",
       acpSessionId: null,
+      availableCommands: [],
       configOptions: [
         {
           type: "select",
@@ -193,6 +196,7 @@ describe("ConfigOptionsBar", () => {
       agentId: "claude-code",
       status: "ready",
       acpSessionId: "acp-1",
+      availableCommands: [],
       configOptions: [
         {
           type: "select",
@@ -224,6 +228,7 @@ describe("ConfigOptionsBar", () => {
       agentId: "claude-code",
       status: "ready",
       acpSessionId: "acp-1",
+      availableCommands: [],
       configOptions: [
         {
           type: "select",
@@ -296,6 +301,7 @@ describe("ConfigOptionsBar", () => {
       agentId: "claude-code",
       status: "ready",
       acpSessionId: "acp-1",
+      availableCommands: [],
       configOptions,
     });
 

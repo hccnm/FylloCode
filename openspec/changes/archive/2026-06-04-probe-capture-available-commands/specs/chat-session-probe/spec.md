@@ -1,10 +1,4 @@
-# chat-session-probe Specification
-
-## Purpose
-
-TBD - created by archiving change add-draft-session-probe. Update Purpose after archive.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: SessionProbeRegistry 在主进程维护按 agentId 索引的内存态
 
@@ -138,77 +132,6 @@ interface ProbeSnapshot {
 - **AND** 该 agent 进程 `sessionHandlers` 中的 probe-only handler 被注销
 - **AND** renderer 收到 `chat:probe:update { agentId: "claude-code", snapshot: null }`
 
-### Requirement: chat:probe IPC 通道集
-
-`shared/types/channels.ts` SHALL 在新 namespace `ChatProbeChannels` 中暴露：
-
-```ts
-export const ChatProbeChannels = {
-  ensure: "chat:probe:ensure",
-  close: "chat:probe:close",
-  setConfigOption: "chat:probe:setConfigOption",
-  update: "chat:probe:update",
-} as const;
-```
-
-`shared/schemas/ipc/chat.ts` SHALL 暴露：
-
-- `probeEnsureInputSchema`：`{ agentId: z.string().min(1), projectId: z.string().min(1) }`
-- `probeCloseInputSchema`：`{ agentId: z.string().min(1) }`
-- `probeSetConfigOptionInputSchema`：`{ agentId: z.string().min(1), configId: z.string().min(1), type: z.enum(["select", "boolean"]), value: z.union([z.string(), z.boolean()]) }` 等价于 `setConfigOptionInputSchema` 但去除 `projectId` 与 `sessionId`，新增 `agentId`
-
-`electron/main/ipc/chat.ts` SHALL 在 `registerChatHandlers` 中：
-
-- `ipcMain.handle(ChatProbeChannels.ensure, ...)` 调用 `sessionProbeService.ensureProbe(...)`，返回 `IpcResponse<ProbeSnapshot>`。`projectPath` 由 `resolveProjectPath(input.projectId)` 解析。
-- `ipcMain.handle(ChatProbeChannels.close, ...)` 调用 `sessionProbeService.closeProbe(input.agentId)`。
-- `ipcMain.handle(ChatProbeChannels.setConfigOption, ...)` 调用 `sessionProbeService.setProbeConfigOption(...)`。
-- 在主进程模块加载阶段或首次 `ensureProbe` 调用时，订阅 `SessionProbeBus.on("update", ...)`，通过 `mainWindow.webContents.send(ChatProbeChannels.update, payload)` 广播。
-- 该 update 事件 payload 类型为 `{ agentId: string; snapshot: ProbeSnapshot | null }`。
-
-`electron/preload/api/chat.ts` SHALL 在 `chatApi` 中新增：
-
-```ts
-probeEnsure(input: { agentId: string; projectId: string }): Promise<IpcResponse<ProbeSnapshot>>
-probeClose(input: { agentId: string }): Promise<IpcResponse<void>>
-probeSetConfigOption(input: { ... }): Promise<IpcResponse<ProbeSnapshot>>
-onProbeUpdate(handler: (payload: { agentId: string; snapshot: ProbeSnapshot | null }) => void): () => void
-```
-
-`onProbeUpdate` 注册 IPC 监听器并返回 `unsubscribe` 函数（在 store unmount 或不需要时调用）。
-
-#### Scenario: ensure IPC 返回最新 snapshot
-
-- **WHEN** renderer 调 `chatApi.probeEnsure({ agentId, projectId })`
-- **THEN** 主进程经 `validate(probeEnsureInputSchema, input)` 与 `resolveProjectPath` 后调用 `sessionProbeService.ensureProbe(agentId, projectPath)`
-- **AND** 返回 `IpcResponse<ProbeSnapshot>`
-
-#### Scenario: update 事件广播
-
-- **WHEN** `sessionProbeService` 在 ensure 成功后 emit `update` 事件
-- **THEN** 主进程通过 `mainWindow.webContents.send(ChatProbeChannels.update, { agentId, snapshot })` 广播
-- **AND** renderer 通过 `chatApi.onProbeUpdate` 注册的 handler 收到该 payload
-- **AND** snapshot 为 `null` 时表示对应 agent 的 probe 已被 close 或失效
-
-#### Scenario: probe IPC 入参非法时被拒
-
-- **WHEN** renderer 传入 `{ agentId: "" }`
-- **THEN** zod 校验失败，返回 `IpcResponse<error: { code: "VALIDATION_ERROR" }>`
-- **AND** 主进程不调用 service 层
-
-### Requirement: agent 进程不可用时 SessionProbeService 自动清理
-
-`session-probe-service.ts` SHALL 在主进程模块初始化时订阅 `acp-process-pool` 暴露的 agent unavailable 信号，对每条 unavailable 事件：
-
-- 从 `SessionProbeRegistry` 中移除对应 `agentId` 的 entry（不调用 `closeSession`，agent 进程已死）
-- emit `chat:probe:update` 事件，snapshot 为 `null`，使 renderer 同步清空 draftProbeByAgent
-
-#### Scenario: agent 进程崩溃时 ProbeRegistry 自动清理
-
-- **WHEN** `acp-process-pool` 检测到 `claude-code` 进程退出
-- **THEN** `SessionProbeRegistry` 中 `claude-code` 对应 entry 被移除
-- **AND** renderer 收到 `chat:probe:update { agentId: "claude-code", snapshot: null }`
-- **AND** 主进程不调用 `connection.closeSession`
-
 ### Requirement: chat:stream:message handler 在 acpSessionId 入参存在时 consume Probe 并写入 SessionMeta
 
 `electron/main/ipc/chat.ts` 中 `chat:stream:message` 的 handler `onReady` 钩子 SHALL 满足：
@@ -255,38 +178,6 @@ handler SHALL NOT 在 `acpSessionId` 入参存在时再尝试调用 `connection.
 - **AND** Registry 中对应 entry 仍被 `takeFor` 移除（消费 probe 内存槽位）
 - **AND** `AcpSession` 仍以 `presetAcpSessionId: "sess-A"` 构造
 
-### Requirement: draftAgentId watcher 响应 projectId 变化
-
-`useSessionStore` 中监听 `effectiveAgentId` 的 watcher SHALL 将依赖项扩展为 `[effectiveAgentId, projectStore.currentProject?.id]` 元组，使得 projectId 从 null 变为有效值时也能触发 probe 发起。
-
-具体行为：
-
-- watcher 依赖 `() => [effectiveAgentId.value, useProjectStore().currentProject?.id ?? null] as const`
-- 当 `nextAgentId` 与 `previousAgentId`（元组第一维的旧值）不同时，才触发 `refreshCapabilities` 和 `closeDraftProbe`（避免仅 projectId 变化时误关 probe）
-- 当 `isDraft && nextAgentId && projectId` 均满足，且 `draftProbeByAgent.value.has(nextAgentId)` 为 false 时，才发起 `ensureDraftProbe`（防止 agent 切去切回时重复 probe）
-- 若 `projectId` 为 null，直接 return，不发起 probe
-
-#### Scenario: 启动后选择项目触发 probe
-
-- **WHEN** 应用启动，`draftAgentId` 已就绪（第一个已安装 agent），但 `projectId` 为 null
-- **AND** 用户选择一个项目，`projectId` 从 null 变为有效值
-- **THEN** watcher 触发（projectId 维度变化）
-- **AND** `ensureDraftProbe(draftAgentId, projectId)` 在 200ms 后被调用
-- **AND** probe 就绪后 `ConfigOptionsBar` 正常渲染
-
-#### Scenario: 仅 projectId 变化不触发 refreshCapabilities 和 closeDraftProbe
-
-- **WHEN** `effectiveAgentId` 不变，仅 `projectId` 从 null 变为有效值
-- **THEN** `refreshCapabilities` 不被调用（agent 未变）
-- **AND** `closeDraftProbe` 不被调用（agent 未变）
-- **AND** 仅 `ensureDraftProbe` 在条件满足时被调用
-
-#### Scenario: agent 切去切回不重复 probe
-
-- **WHEN** 草稿态下 `draftAgentId` 从 A 切到 B，再切回 A
-- **AND** A 的 probe 已在 `draftProbeByAgent` 中（`has(A) === true`）
-- **THEN** 切回 A 时 watcher 不重复调用 `ensureDraftProbe("A", projectId)`
-
 ### Requirement: chat:createSession 入参 SHALL 接受 probe 数据并写入 SessionMeta
 
 `chat:createSession` IPC 入参 SHALL 在原有 `{ projectId, title, agentId }` 基础上新增可选字段 `configOptions?: AcpSessionConfigOption[]`、`availableCommands?: AcpAvailableCommand[]` 与 `acpSessionId?: string`，入参 schema 在 `shared/schemas/ipc/chat.ts` 的 `createSessionInputSchema` 中以 `.optional()` 标注；preload `electron/preload/api/chat.ts` 中 `chatApi.createSession` 的入参类型同步扩展。
@@ -320,6 +211,8 @@ handler SHALL NOT 在 `acpSessionId` 入参存在时再尝试调用 `connection.
 - **THEN** session meta 文件持久化 `available_commands: []`
 - **AND** IPC 响应 `Session.availableCommands` 为 `[]`
 - **AND** 后续 session-store 字段级更新不会因「空数组等同于缺失」误删该字段
+
+## ADDED Requirements
 
 ### Requirement: ensureProbe 注册 probe-only session handler 接住异步 available_commands_update
 

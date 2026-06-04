@@ -1,6 +1,7 @@
 import type { Message, Session } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
+import type { AcpAvailableCommand } from "@shared/types/chat";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { loadProject } from "@main/infra/storage/project-store";
@@ -56,6 +57,7 @@ export async function createSession(input: {
   title: string;
   agentId: string;
   configOptions?: AcpSessionConfigOption[] | unknown[];
+  availableCommands?: AcpAvailableCommand[];
   acpSessionId?: string;
 }): Promise<Session> {
   const projectPath = await resolveProjectPath(input.projectId);
@@ -76,6 +78,9 @@ export async function createSession(input: {
     meta.configOptions = normalizeAcpSessionConfigOptions(
       input.configOptions as Parameters<typeof normalizeAcpSessionConfigOptions>[0]
     );
+  }
+  if (input.availableCommands !== undefined) {
+    meta.available_commands = input.availableCommands;
   }
   await createSessionMeta(projectPath, meta);
   return toSession(meta, input.projectId);

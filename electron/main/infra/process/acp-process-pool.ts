@@ -16,7 +16,7 @@ import { registerDisposable } from "@main/bootstrap/lifecycle";
 import { upsertPromptCapabilities } from "@main/infra/storage/agent-capability-store";
 import logger from "@main/infra/logger";
 
-type SessionUpdateHandler = (notification: SessionNotification) => void;
+export type SessionUpdateHandler = (notification: SessionNotification) => void;
 type AgentUnavailableListener = (event: { agentId: string; reason: string }) => void;
 
 interface AgentProcess {
@@ -24,6 +24,12 @@ interface AgentProcess {
   child: ChildProcessWithoutNullStreams;
   ready: boolean;
   sessionHandlers: Map<string, SessionUpdateHandler>;
+  // Fallback handler for session/update notifications that arrive before any
+  // precise sessionId handler is registered. Used by the draft-session probe
+  // to capture metadata (e.g. available_commands_update) that the agent pushes
+  // asynchronously right after newSession returns, when no prompt-turn handler
+  // exists yet. Precise sessionId handlers always take priority.
+  pendingProbeHandler?: SessionUpdateHandler;
   failures: number;
   initializeResponse: InitializeResponse;
 }
@@ -135,7 +141,15 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
       },
       async sessionUpdate(notification: SessionNotification) {
         const handler = sessionHandlers.get(notification.sessionId);
-        handler?.(notification);
+        if (handler) {
+          handler(notification);
+          return;
+        }
+        // No precise sessionId handler yet — fall back to the probe handler so
+        // metadata pushed between newSession and the first prompt turn is not
+        // dropped. `pool.get(agentId)` resolves the live entry because this
+        // closure may run before `pool.set` has completed during start.
+        pool.get(agentId)?.pendingProbeHandler?.(notification);
       },
     }),
     stream
@@ -238,6 +252,27 @@ export async function getOrStartProcess(agentId: string): Promise<AgentProcess> 
   });
   pendingStarts.set(agentId, start);
   return start;
+}
+
+/**
+ * Register a fallback handler for session/update notifications that have no
+ * precise sessionId handler yet. Used by the draft-session probe to capture
+ * metadata the agent pushes asynchronously right after newSession returns.
+ * No-op if the agent process is not currently in the pool.
+ */
+export function setPendingProbeHandler(agentId: string, handler: SessionUpdateHandler): void {
+  const entry = pool.get(agentId);
+  if (entry) {
+    entry.pendingProbeHandler = handler;
+  }
+}
+
+/** Remove the probe fallback handler so it does not leak after probe close. */
+export function clearPendingProbeHandler(agentId: string): void {
+  const entry = pool.get(agentId);
+  if (entry) {
+    entry.pendingProbeHandler = undefined;
+  }
 }
 
 async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {

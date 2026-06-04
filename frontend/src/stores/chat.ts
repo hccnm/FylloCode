@@ -260,6 +260,9 @@ export const useChatStore = defineStore("chat", () => {
               configOptions: JSON.parse(
                 JSON.stringify(probeBeforeCreate.configOptions)
               ) as typeof probeBeforeCreate.configOptions,
+              availableCommands: JSON.parse(
+                JSON.stringify(probeBeforeCreate.availableCommands)
+              ) as typeof probeBeforeCreate.availableCommands,
               acpSessionId: probeBeforeCreate.acpSessionId,
             }
           : null;

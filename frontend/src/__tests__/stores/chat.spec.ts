@@ -317,6 +317,7 @@ describe("useChatStore", () => {
       status: "ready",
       acpSessionId: "acp-probe",
       configOptions: probeConfigOptions,
+      availableCommands: [{ name: "init", description: "Initialize" }],
     });
     const applyProbeUpdateSpy = vi.spyOn(sessionStore, "applyProbeUpdate");
     vi.mocked(chatApi.streamMessage).mockImplementation(
@@ -335,6 +336,7 @@ describe("useChatStore", () => {
       title: "hello world",
       agentId: "claude-code",
       configOptions: probeConfigOptions,
+      availableCommands: [{ name: "init", description: "Initialize" }],
       acpSessionId: "acp-probe",
     });
     expect(chatApi.streamMessage).toHaveBeenCalledWith(
@@ -355,6 +357,7 @@ describe("useChatStore", () => {
       status: "failed",
       acpSessionId: null,
       configOptions: [],
+      availableCommands: [],
       error: { code: "ACP_ERROR", message: "failed" },
     });
     const applyProbeUpdateSpy = vi.spyOn(sessionStore, "applyProbeUpdate");
@@ -394,6 +397,7 @@ describe("useChatStore", () => {
       status: "ready",
       acpSessionId: "acp-probe",
       configOptions: [],
+      availableCommands: [],
     });
     const projectStore = useProjectStore();
     projectStore.currentProject = {

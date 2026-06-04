@@ -26,13 +26,18 @@ const projectStore = useProjectStore();
 const sessionStore = useSessionStore();
 const toast = useToast();
 const { chatStatus } = storeToRefs(chatStore);
-const { activeSession, draftAgentId } = storeToRefs(sessionStore);
+const { activeSession, draftAgentId, activeDraftProbe } = storeToRefs(sessionStore);
 
 const agent = computed<string | undefined>(
   () => activeSession.value?.agentId ?? draftAgentId.value ?? undefined
 );
 
-const availableCommands = computed(() => activeSession.value?.availableCommands ?? []);
+const availableCommands = computed(() => {
+  if (activeSession.value) {
+    return activeSession.value.availableCommands ?? [];
+  }
+  return activeDraftProbe.value?.status === "ready" ? activeDraftProbe.value.availableCommands : [];
+});
 const hasAvailableCommands = computed(() => availableCommands.value.length > 0);
 const attachments = ref<ChatPromptAttachment[]>([]);
 const savingAttachmentCount = ref(0);

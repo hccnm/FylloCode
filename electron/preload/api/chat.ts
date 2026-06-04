@@ -2,7 +2,7 @@ import { ipcRenderer } from "electron";
 import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
 import { ChatChannels, ChatProbeChannels, ChatStreamChannels } from "@shared/types/channels";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
-import type { Session, Message } from "@shared/types/chat";
+import type { AcpAvailableCommand, Session, Message } from "@shared/types/chat";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 
@@ -34,6 +34,7 @@ export const chatApi = {
     title: string;
     agentId?: string;
     configOptions?: AcpSessionConfigOption[];
+    availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
   }): Promise<IpcResponse<Session>> {
     return ipcRenderer.invoke(ChatChannels.createSession, input);

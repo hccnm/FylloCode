@@ -241,6 +241,7 @@ export function registerChatHandlers(): void {
             acpSessionId,
             agentId,
             configOptions: probeEntry.configOptions,
+            available_commands: probeEntry.availableCommands,
             updatedAt: new Date().toISOString(),
           });
           presetAcpSessionId = acpSessionId;

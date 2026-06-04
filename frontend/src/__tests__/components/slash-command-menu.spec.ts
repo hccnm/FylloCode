@@ -40,6 +40,32 @@ const commandPaletteStub = {
   `,
 };
 
+// Expose the Transition enter/leave class props as data attributes so tests can
+// assert the button is wrapped and uses the same transition as ConfigOptionsBar.
+const transitionStub = {
+  props: [
+    "enterActiveClass",
+    "enterFromClass",
+    "enterToClass",
+    "leaveActiveClass",
+    "leaveFromClass",
+    "leaveToClass",
+  ],
+  template: `
+    <div
+      data-test="slash-transition"
+      :data-enter-active="enterActiveClass"
+      :data-enter-from="enterFromClass"
+      :data-enter-to="enterToClass"
+      :data-leave-active="leaveActiveClass"
+      :data-leave-from="leaveFromClass"
+      :data-leave-to="leaveToClass"
+    >
+      <slot />
+    </div>
+  `,
+};
+
 function mountMenu(): VueWrapper {
   return mount(SlashCommandMenu, {
     props: {
@@ -54,6 +80,7 @@ function mountMenu(): VueWrapper {
         Popover: popoverStub,
         UCommandPalette: commandPaletteStub,
         CommandPalette: commandPaletteStub,
+        Transition: transitionStub,
       },
     },
   });
@@ -83,5 +110,32 @@ describe("SlashCommandMenu", () => {
     expect(menu.attributes("data-ui-content")).toContain(
       "max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto"
     );
+  });
+
+  it("wraps the trigger button in a Transition matching ConfigOptionsBar", () => {
+    const wrapper = mountMenu();
+    const transition = wrapper.get('[data-test="slash-transition"]');
+
+    // Same class constants as ConfigOptionsBar.vue.
+    expect(transition.attributes("data-enter-active")).toBe("transition duration-150 ease-out");
+    expect(transition.attributes("data-enter-from")).toBe("opacity-0 translate-y-1");
+    expect(transition.attributes("data-enter-to")).toBe("opacity-100 translate-y-0");
+    expect(transition.attributes("data-leave-active")).toBe("transition duration-150 ease-out");
+    expect(transition.attributes("data-leave-from")).toBe("opacity-100 translate-y-0");
+    expect(transition.attributes("data-leave-to")).toBe("opacity-0 translate-y-1");
+
+    // The button lives inside the transition wrapper.
+    expect(transition.find('[data-test="slash-button"]').exists()).toBe(true);
+  });
+
+  it("unmounts the button without error when commands become empty", async () => {
+    const wrapper = mountMenu();
+    expect(wrapper.find('[data-test="slash-button"]').exists()).toBe(true);
+
+    await wrapper.setProps({ commands: [] });
+
+    expect(wrapper.find('[data-test="slash-button"]').exists()).toBe(false);
+    // Popover wrapper still renders (anchor present) and no error thrown.
+    expect(wrapper.find('[data-test="slash-transition"]').exists()).toBe(true);
   });
 });

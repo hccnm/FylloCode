@@ -291,21 +291,34 @@ chat store SHALL NOT 自身维护 commands 状态（职责严格限定在"一次
 
 ### Requirement: ChatContainer 集成 slash 命令菜单
 
-系统 SHALL 在 `frontend/src/components/chat/ChatContainer.vue` 的 `UChatPrompt` 组件内集成 slash 命令菜单，并在 footer 左侧渲染一个 slash 触发按钮，用于发现与使用当前 agent 声明的可用命令。
+系统 SHALL 在 chat prompt 输入区（当前实现位于 `frontend/src/components/chat/prompt/ChatPromptPanel.vue`，历史 spec 文本指向 `ChatContainer.vue`，以实际承载 `UChatPrompt#footer` 的组件为准）的 `UChatPrompt` 组件内集成 slash 命令菜单，并在 footer 左侧渲染一个 slash 触发按钮，用于发现与使用当前 agent 声明的可用命令。
+
+slash 命令的数据源 SHALL 为「双源回退」计算属性，与 `ConfigOptionsBar.vue` 的 `sourceOptions` 模式一致：
+
+```ts
+const availableCommands = computed<AcpAvailableCommand[]>(() => {
+  if (activeSession.value) {
+    return activeSession.value.availableCommands ?? [];
+  }
+  return activeDraftProbe.value?.status === "ready" ? activeDraftProbe.value.availableCommands : [];
+});
+```
+
+即：存在 `activeSession` 时读 `activeSession.availableCommands`；草稿态（`activeSession` 为 `null`）时回退读 `activeDraftProbe`（ready 时取其 `availableCommands`，否则空数组）。这是 slash command 在「首条消息发送前」即可用的关键——草稿期 probe 抓到的命令通过此回退路径暴露给 slash 菜单。
 
 具体要求：
 
-- **按钮可见性**：在 `UChatPrompt` 的 footer 左侧（与 `ContextUsageRing` 同区域，位于 `ContextUsageRing` 右侧、`ChatAgentSelect` 左侧）渲染一个 slash 按钮，图标为 `i-lucide-slash-square`，`v-if="(activeSession?.availableCommands?.length ?? 0) > 0"`。`availableCommands` 为 `undefined` 或空数组时按钮不渲染。
+- **按钮可见性**：在 `UChatPrompt` 的 footer 左侧渲染一个 slash 按钮，图标为 `i-lucide-slash-square`，可见条件 SHALL 改为基于上述 `availableCommands` 计算属性：`v-if="availableCommands.length > 0"`。`availableCommands` 为空数组时按钮不渲染。
 
 - **按钮组件**：统一使用 `UButton variant="ghost" size="sm"` 包裹 `UIcon name="i-lucide-slash-square"`；不使用 `USlot` / `UChip` 等其他组件。
 
-- **菜单组件**：点击按钮打开命令菜单。首选 `@nuxt/ui` 的 `UCommandPalette`（支持搜索、键盘导航、回车选中、ESC 关闭）；若其与 `UChatPrompt` 内嵌布局冲突（例如定位溢出或焦点陷阱失效），降级为 `UPopover` + `UListbox` + `UInput` 的组合，保持键盘导航 / 回车选中 / ESC 关闭 / 鼠标点击选中四项能力。菜单项展示两行：
+- **菜单组件**：点击按钮打开命令菜单。首选 `@nuxt/ui` 的 `UCommandPalette`（支持搜索、键盘导航、回车选中、ESC 关闭）；若其与 `UChatPrompt` 内嵌布局冲突，降级为 `UPopover` + `UListbox` + `UInput` 的组合，保持键盘导航 / 回车选中 / ESC 关闭 / 鼠标点击选中四项能力。菜单项展示两行：
   - 主文本：`/<command.name>`
   - 副文本：`<command.description>`
 
 - **菜单交互**：SHALL 支持键盘上下方向键导航、回车选中、ESC 关闭；支持鼠标点击选中。菜单打开时焦点落在菜单搜索输入或首个选项；菜单关闭后焦点回到输入框当前位置。
 
-- **`/` 键触发条件**：当用户在输入框按下 `/` 键、输入框聚焦、且光标处于"行首"（定义见下）、且 `activeSession?.availableCommands?.length > 0` 时，菜单 SHALL 在下一个 tick 打开。
+- **`/` 键触发条件**：当用户在输入框按下 `/` 键、输入框聚焦、且光标处于"行首"（定义见下）、且 `availableCommands.length > 0`（读上述计算属性，覆盖草稿态）时，菜单 SHALL 在下一个 tick 打开。
 
   **"行首"定义**：设 `text = textarea.value`、`cursor = textarea.selectionStart`，令 `prefix = text.slice(0, cursor)`；若 `prefix` 不包含 `\n`，则其中仅有空白字符（空格或 tab）或为空串时视为行首；若 `prefix` 包含 `\n`，则取最后一个 `\n` 之后到 cursor 之间的子串，该子串仅有空白字符或为空串时视为行首。此定义支持多行输入的第二行起继续唤起菜单。
 
@@ -326,7 +339,7 @@ chat store SHALL NOT 自身维护 commands 状态（职责严格限定在"一次
 
 - **菜单关闭状态管理**：菜单关闭不清空输入框当前内容；菜单重开时重置搜索词为空、焦点回到第一项。
 
-- **空态隐藏**：当 `activeSession` 为 `null`、`availableCommands` 为 `undefined` 或为 `[]` 时，按钮不渲染；`/` 键 keydown handler SHALL 读取最新 `availableCommands?.length`，发现不满足条件时直接返回（不打开菜单），让 `/` 按普通字符输入；不需要 preventDefault。
+- **空态隐藏**：当上述 `availableCommands` 计算属性为空数组时，按钮不渲染；`/` 键 keydown handler SHALL 读取最新 `availableCommands.length`，发现不满足条件时直接返回（不打开菜单），让 `/` 按普通字符输入；不需要 preventDefault。
 
 #### Scenario: agent 推送命令后按钮出现
 
@@ -334,71 +347,17 @@ chat store SHALL NOT 自身维护 commands 状态（职责严格限定在"一次
 - **THEN** `UChatPrompt` footer 左侧出现 slash 触发按钮
 - **AND** 按钮点击可打开菜单，展示 "/review" 与其 description
 
-#### Scenario: 按 `/` 键在空输入框触发菜单
+#### Scenario: 草稿态 probe 抓到命令后按钮出现
 
-- **WHEN** 输入框聚焦、内容为空、`activeSession.availableCommands.length > 0`，用户按下 `/`
-- **THEN** keydown handler 不调用 `preventDefault`，浏览器正常写入 `/`
-- **AND** 菜单在随后的 tick 打开，展示当前 agent 声明的所有命令
-- **AND** 输入框内容为 "/"
+- **WHEN** `activeSession` 为 `null`（草稿态），`activeDraftProbe.value.status === "ready"`，其 `availableCommands` 为 `[{ name: "init", description: "..." }]`
+- **THEN** slash 触发按钮在首条消息发送前即渲染
+- **AND** 输入框聚焦、内容为空时按 `/` 可打开菜单，展示 "/init" 与其 description
 
-#### Scenario: 按 `/` 键在多行输入第二行行首触发菜单
+#### Scenario: 草稿态 probe 未就绪时按钮隐藏
 
-- **WHEN** 输入框内容为 "hello\n"，光标位于末尾（即第二行行首），用户按下 `/`
-- **THEN** 菜单打开，输入框内容变为 "hello\n/"
-
-#### Scenario: 按 `/` 键在句中不触发菜单
-
-- **WHEN** 输入框内容为 "hello" 且光标在末尾（第一行非行首），用户按下 `/`
-- **THEN** 菜单不打开，输入框内容变为 "hello/"
-
-#### Scenario: 选中命令替换 `/` 并应用 hint
-
-- **WHEN** `/` 键触发菜单后，用户选中名为 "review-commit"（description "Review the code changes introduced by a commit"，hint "commit sha"）的命令
-- **THEN** 输入框内容替换为 "/review-commit "（末尾含一个空格）
-- **AND** 光标置于末尾
-- **AND** `placeholder` 临时变为 "commit sha"，组件记录 baseline 为 "/review-commit "
-- **AND** 菜单关闭，焦点回到输入框
-
-#### Scenario: hint 下一次输入后恢复
-
-- **WHEN** 上一场景完成后，用户继续输入 "abc"，`textarea.value` 变为 "/review-commit abc"
-- **THEN** `textarea.value !== baseline` 条件满足，`placeholder` 恢复为默认值
-- **AND** 监听器取消，不再响应后续 input 事件
-
-#### Scenario: hint 失焦后恢复
-
-- **WHEN** 选中带 hint 的命令后，用户直接点击输入框外，textarea 触发 `blur`
-- **THEN** `placeholder` 恢复为默认值，监听器取消
-
-#### Scenario: 按钮点击插入时自动补空格
-
-- **WHEN** 输入框内容为 "fix this"（末尾无空格），光标在末尾，用户点击 slash 按钮后选中 "review"
-- **THEN** 输入框内容变为 "fix this /review "
-- **AND** 光标置于新末尾
-
-#### Scenario: 按钮点击插入时不重复补空格
-
-- **WHEN** 输入框内容为 "fix this "（末尾已有空格），光标在末尾，用户点击 slash 按钮后选中 "review"
-- **THEN** 输入框内容变为 "fix this /review "（总空格数为 1）
-- **AND** 光标置于新末尾
-
-#### Scenario: ESC 关闭菜单保留 `/`
-
-- **WHEN** `/` 键触发菜单后，用户按 ESC 关闭菜单，未选中任何命令
-- **THEN** 菜单关闭，输入框内容保持为 "/"（此前用户按 `/` 时写入的字符不被清除）
-- **AND** 焦点回到输入框
-
-#### Scenario: agent 未声明命令时按钮隐藏
-
-- **WHEN** `activeSession` 为 `null`，或 `activeSession.availableCommands` 为 `undefined`，或为 `[]`
+- **WHEN** `activeSession` 为 `null`，`activeDraftProbe` 为 `null` 或 `status !== "ready"`
 - **THEN** slash 按钮不渲染
-- **AND** 按 `/` 键不打开菜单，`/` 字符按普通文本输入
-
-#### Scenario: 切换 session 按当前 session 数据更新按钮状态
-
-- **WHEN** 用户从 session A（有命令）切换到 session B（无命令）
-- **THEN** slash 按钮隐藏
-- **AND** 再切回 session A，按钮根据 session A 自身 `availableCommands` 重新出现
+- **AND** 按 `/` 不打开菜单，按普通字符输入
 
 ### Requirement: Chat 页面 SHALL 可见渲染流式错误
 
@@ -825,15 +784,18 @@ interface DraftProbeState {
   status: DraftProbeStatus;
   acpSessionId: string | null;
   configOptions: AcpSessionConfigOption[];
+  availableCommands: AcpAvailableCommand[];
   error?: { code: string; message: string };
 }
 ```
 
+`availableCommands` 字段 SHALL 与 `configOptions` 并列，类型为 `@shared/types/chat` 导出的 `AcpAvailableCommand[]`。`setDraftProbe(agentId, snapshot)`（内部写入 `draftProbeByAgent` 的方法）SHALL 把 `snapshot.availableCommands` 一并映射到 `DraftProbeState.availableCommands`；occupied 占位（`status === "starting"`）与失败（`status === "failed"`）entry 的 `availableCommands` SHALL 为空数组 `[]`。
+
 `ensureDraftProbe(agentId, projectId)` 行为：
 
 1. 调用 `chatApi.probeEnsure({ agentId, projectId })`。
-2. 成功：把响应快照写入 `draftProbeByAgent.value.set(agentId, snapshot)`。
-3. 失败：写入 `{ status: "failed", error }` 占位条目。
+2. 成功：把响应快照写入 `draftProbeByAgent.value.set(agentId, snapshot)`（含 `availableCommands`）。
+3. 失败：写入 `{ status: "failed", error, availableCommands: [] }` 占位条目。
 4. 不抛错；UI 通过 `activeDraftProbe.value.status` 决定渲染。
 
 `closeDraftProbe(agentId)` 行为：
@@ -854,7 +816,7 @@ interface DraftProbeState {
 `applyProbeUpdate(agentId, snapshot)` 行为：
 
 - `snapshot === null` SHALL `draftProbeByAgent.value.delete(agentId)`。
-- 否则 SHALL `draftProbeByAgent.value.set(agentId, snapshot)`。
+- 否则 SHALL `draftProbeByAgent.value.set(agentId, snapshot)`（含 `availableCommands`）。
 
 `subscribeProbeUpdates()` 行为：
 
@@ -864,31 +826,22 @@ interface DraftProbeState {
 
 #### Scenario: ensureDraftProbe 写入 ready snapshot
 
-- **WHEN** 调用 `ensureDraftProbe("claude-code", projectId)`，IPC 返回 `{ ok: true, data: { status: "ready", acpSessionId: "sess-A", configOptions: [...] } }`
+- **WHEN** 调用 `ensureDraftProbe("claude-code", projectId)`，IPC 返回 `{ ok: true, data: { status: "ready", acpSessionId: "sess-A", configOptions: [...], availableCommands: [...] } }`
 - **THEN** `draftProbeByAgent.value.get("claude-code")` 存在
-- **AND** 该 entry 的 `acpSessionId === "sess-A"`，`configOptions` 与响应一致
+- **AND** 该 entry 的 `acpSessionId === "sess-A"`，`configOptions` 与 `availableCommands` 与响应一致
 
 #### Scenario: closeDraftProbe 立即清空本地态
 
 - **WHEN** `draftProbeByAgent` 中存在 `claude-code` 的 entry，调用 `closeDraftProbe("claude-code")`
 - **THEN** 同步调用结束后 `draftProbeByAgent.value.has("claude-code") === false`
 - **AND** UI 在下一 tick 不再渲染 claude-code 的 configOptions
-- **AND** 异步 IPC `chat:probe:close` 已发起（不阻塞）
 
-#### Scenario: setDraftConfigOption 乐观更新与回滚
+#### Scenario: probe 异步推送命令后 draftProbe 更新
 
-- **WHEN** `draftProbeByAgent` 中存在 `claude-code` 的 entry，含 `id="model", currentValue="haiku"` 的 configOption
-- **AND** 调用 `setDraftConfigOption({ agentId: "claude-code", configId: "model", type: "select", value: "sonnet" })`
-- **THEN** 该 configOption 的 `currentValue` 立即变为 `"sonnet"`
-- **AND** chat store 的 `pendingConfigIds` 含 `"model"`
-- **AND** IPC 失败时 `currentValue` 回滚为 `"haiku"`，并 `useToast()` 提示错误
-- **AND** `pendingConfigIds` 移除 `"model"`
-
-#### Scenario: applyProbeUpdate snapshot 为 null 时清空对应 entry
-
-- **WHEN** 主进程通过 `chat:probe:update` 推送 `{ agentId: "claude-code", snapshot: null }`
-- **THEN** session store 调 `applyProbeUpdate("claude-code", null)`
-- **AND** `draftProbeByAgent.value.has("claude-code") === false`
+- **WHEN** `draftProbeByAgent` 中已有 claude-code 的 ready entry（`availableCommands === []`）
+- **AND** renderer 通过 `chatApi.onProbeUpdate` 收到 `{ agentId: "claude-code", snapshot: { status: "ready", acpSessionId: "sess-A", configOptions: [...], availableCommands: [{ name: "init", ... }] } }`
+- **THEN** `applyProbeUpdate` 把该 snapshot 写入 `draftProbeByAgent`
+- **AND** `activeDraftProbe.value.availableCommands` 变为 `[{ name: "init", ... }]`
 
 ### Requirement: draftAgentId 变化时先清后取
 
@@ -931,9 +884,10 @@ watcher SHALL 仅在 `activeSessionId === null`（草稿态）时执行 close/en
 
 1. 拿到草稿态对应的 `draftAgentIdSnapshot`（与 `createSession` 入参一致）。
 2. 读取 `useSessionStore().draftProbeByAgent.get(draftAgentIdSnapshot)` 得到 `probeBeforeCreate`。
-3. 调 `streamSessionMessage(activeSession, projectId, parts, sessionStore, streamRunId, options)`，其中 `options.acpSessionId` 仅当 `probeBeforeCreate?.status === "ready" && probeBeforeCreate.acpSessionId` 时传入。
-4. **不要在 `streamSessionMessage` 启动后再读 probe**——`createSession` 与 stream 之间存在异步窗口，必须使用 `probeBeforeCreate` 的快照。
-5. **必须**在写入 `chatApi.streamMessage(...)` 之前**同步**调用 `useSessionStore().applyProbeUpdate(draftAgentIdSnapshot, null)` 清空对应 draftProbe 内存态——主进程 handler 会 `takeFor` consume，renderer 不应再认为它存在。
+3. 当 `probeBeforeCreate?.status === "ready" && probeBeforeCreate.acpSessionId` 时，构造 `carryProbe = { configOptions: <深拷贝 probeBeforeCreate.configOptions>, availableCommands: <深拷贝 probeBeforeCreate.availableCommands>, acpSessionId: probeBeforeCreate.acpSessionId }`，并把 `configOptions`、`availableCommands`、不传则省略的方式一并传入 `createSession`（见 chat-session-probe 的 `chat:createSession` 入参 requirement）。
+4. 调 `streamSessionMessage(activeSession, projectId, parts, sessionStore, streamRunId, options)`，其中 `options.acpSessionId` 仅当 `carryProbe` 存在时传入。
+5. **不要在 `streamSessionMessage` 启动后再读 probe**——`createSession` 与 stream 之间存在异步窗口，必须使用 `probeBeforeCreate` 的快照。
+6. **必须**在写入 `chatApi.streamMessage(...)` 之前**同步**调用 `useSessionStore().applyProbeUpdate(draftAgentIdSnapshot, null)` 清空对应 draftProbe 内存态——主进程 handler 会 `takeFor` consume，renderer 不应再认为它存在。
 
 `streamSessionMessage` 函数签名 SHALL 改为：
 
@@ -952,17 +906,18 @@ function streamSessionMessage(
 
 #### Scenario: 草稿态发首条消息，probe 已 ready
 
-- **WHEN** 草稿态 `draftAgentId === "claude-code"`，`draftProbeByAgent` 中 claude-code entry `status === "ready", acpSessionId === "sess-A"`
+- **WHEN** 草稿态 `draftAgentId === "claude-code"`，`draftProbeByAgent` 中 claude-code entry `status === "ready", acpSessionId === "sess-A", availableCommands === [{ name: "init", ... }]`
 - **AND** 用户调 `sendMessage([{ type: "text", text: "hi" }])`
-- **THEN** chat store 创建 fyllo session
+- **THEN** chat store 调 `createSession({ ..., configOptions, availableCommands: [{ name: "init", ... }], acpSessionId: "sess-A" })` 创建 fyllo session
 - **AND** 调 `chatApi.streamMessage(..., { acpSessionId: "sess-A" })`
 - **AND** 同步调 `applyProbeUpdate("claude-code", null)`，`draftProbeByAgent` 移除 claude-code entry
+- **AND** 新建 session 的 `availableCommands` 自创建响应带回，slash 入口在首条消息发出后即可基于 `activeSession.availableCommands` 渲染
 
 #### Scenario: 草稿态发首条消息，probe 失败或未就绪
 
 - **WHEN** 草稿态 `draftAgentId === "claude-code"`，`draftProbeByAgent` 中 claude-code entry `status === "failed"` 或 `status === "starting"` 或不存在
 - **AND** 用户调 `sendMessage([...])`
-- **THEN** chat store 调 `chatApi.streamMessage(...)` 不带 `acpSessionId`
+- **THEN** chat store 调 `chatApi.streamMessage(...)` 不带 `acpSessionId`，`createSession` 不带 `availableCommands`
 - **AND** SHALL NOT 调 `applyProbeUpdate(..., null)`（保留 failed/starting 态供后续重试或 UI 显示）
 
 #### Scenario: 已建立 session 发消息不读 draftProbe
@@ -1097,3 +1052,34 @@ function streamSessionMessage(
 - **THEN** `acpAgentsStore.installAgent(agentId)` 被调用
 - **AND** 卡片显示安装进度（spinner + 进度文案）
 - **AND** 安装完成后该 agent 出现在已安装区
+
+### Requirement: SlashCommandMenu 触发按钮具备与 ConfigOptionsBar 一致的划入动画
+
+`frontend/src/components/chat/prompt/SlashCommandMenu.vue` 的触发按钮（`UPopover` 内 `#default` slot 中 `v-if="hasAvailableCommands"` 的 `UButton`）SHALL 在出现 / 消失时应用与 `ConfigOptionsBar.vue` 完全一致的 Vue `<Transition>` 过渡，使得命令从无到有（含草稿态 probe 异步抓到命令、或 agent 在会话中推送命令）时按钮以淡入+上移方式划入，而非瞬时出现。
+
+过渡 SHALL 使用与 `ConfigOptionsBar.vue` 相同的类名常量：
+
+- `enter-active-class="transition duration-150 ease-out"`
+- `enter-from-class="opacity-0 translate-y-1"`
+- `enter-to-class="opacity-100 translate-y-0"`
+- `leave-active-class="transition duration-150 ease-out"`
+- `leave-from-class="opacity-100 translate-y-0"`
+- `leave-to-class="opacity-0 translate-y-1"`
+
+实现约束：
+
+- `<Transition>` SHALL 包裹触发按钮本身，按 `hasAvailableCommands` 控制其 `v-if`，保持「无命令不渲染按钮」的既有空态语义不变。
+- 包裹后 SHALL 验证 `UPopover` 仍以该按钮为锚点正确定位（`:portal="false"`、`side: 'top'`、`align: 'start'`），过渡不得导致弹层定位漂移或在按钮卸载时报错。
+- 过渡仅作用于触发按钮的出现 / 消失；SHALL NOT 改变 `UCommandPalette` 弹层自身的打开 / 关闭行为与既有交互（搜索、键盘导航、选中、ESC 关闭）。
+
+#### Scenario: 命令从无到有时按钮划入
+
+- **WHEN** slash 触发按钮原本不渲染（`hasAvailableCommands === false`），随后 `commands` 变为非空数组（例如草稿态 probe 异步抓到命令并经 `activeDraftProbe` 回填）
+- **THEN** 按钮以 `opacity-0 translate-y-1` → `opacity-100 translate-y-0`、`duration-150 ease-out` 的过渡划入
+- **AND** 过渡视觉与同区域 `ConfigOptionsBar` 的划入一致
+
+#### Scenario: 命令清空时按钮划出
+
+- **WHEN** slash 触发按钮正在显示，随后 `commands` 变为空数组（例如切换到无命令的 agent / session）
+- **THEN** 按钮以 `opacity-100 translate-y-0` → `opacity-0 translate-y-1` 的过渡淡出后卸载
+- **AND** `UPopover` 不因按钮卸载报错

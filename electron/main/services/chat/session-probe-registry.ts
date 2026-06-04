@@ -1,4 +1,5 @@
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
+import type { AcpAvailableCommand } from "@shared/types/chat";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 
 export interface ProbeEntry {
@@ -6,6 +7,7 @@ export interface ProbeEntry {
   status: ProbeStatus;
   acpSessionId: string | null;
   configOptions: AcpSessionConfigOption[];
+  availableCommands: AcpAvailableCommand[];
   error?: { code: string; message: string };
   startedAt: number;
   inflightEnsure?: Promise<ProbeEntry>;
@@ -48,6 +50,7 @@ export function toProbeSnapshot(entry: ProbeEntry): ProbeSnapshot {
     status: entry.status,
     acpSessionId: entry.acpSessionId,
     configOptions: entry.configOptions,
+    availableCommands: entry.availableCommands,
     error: entry.error,
   };
 }

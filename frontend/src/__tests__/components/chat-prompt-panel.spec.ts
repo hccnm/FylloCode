@@ -4,6 +4,7 @@ import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatPromptPanel from "@renderer/components/chat/prompt/ChatPromptPanel.vue";
 import type { AcpAvailableCommand, Session } from "@shared/types/chat";
+import type { DraftProbeState } from "@renderer/stores/session";
 
 const buttonStub = {
   inheritAttrs: false,
@@ -72,6 +73,7 @@ const getPromptCapabilities = vi.fn();
 const saveAttachment = vi.hoisted(() => vi.fn());
 const activeSessionRef = ref<Session | null>(null);
 const draftAgentIdRef = ref<string | null>("claude-code");
+const activeDraftProbeRef = ref<DraftProbeState | null>(null);
 const chatStatusRef = ref<"ready" | "submitted" | "streaming" | "error">("ready");
 const promptCapabilitiesRef = ref({
   image: true,
@@ -111,6 +113,7 @@ vi.mock("@renderer/stores/session", () => ({
   useSessionStore: () => ({
     activeSession: computed(() => activeSessionRef.value),
     draftAgentId: computed(() => draftAgentIdRef.value),
+    activeDraftProbe: computed(() => activeDraftProbeRef.value),
     createSession,
     setSessionAgent,
     setDraftAgent,
@@ -127,6 +130,7 @@ vi.mock("pinia", async (importOriginal) => {
         chatStatus: computed(() => chatStatusRef.value),
         activeSession: computed(() => activeSessionRef.value),
         draftAgentId: computed(() => draftAgentIdRef.value),
+        activeDraftProbe: computed(() => activeDraftProbeRef.value),
       };
     },
   };
@@ -204,6 +208,7 @@ describe("ChatPromptPanel", () => {
     setActivePinia(createPinia());
     activeSessionRef.value = null;
     draftAgentIdRef.value = "claude-code";
+    activeDraftProbeRef.value = null;
     chatStatusRef.value = "ready";
     sendMessage.mockClear();
     cancelStream.mockClear();
@@ -264,6 +269,36 @@ describe("ChatPromptPanel", () => {
     activeSessionRef.value = makeSession([{ name: "review", description: "Review code" }]);
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[data-test="slash-button"]').exists()).toBe(true);
+  });
+
+  it("shows the slash button in draft state when the ready probe has commands", async () => {
+    activeSessionRef.value = null;
+    activeDraftProbeRef.value = {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-1",
+      configOptions: [],
+      availableCommands: [{ name: "init", description: "Initialize" }],
+    };
+    const wrapper = mountPanel();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-test="slash-button"]').exists()).toBe(true);
+  });
+
+  it("hides the slash button in draft state when the probe is not ready", async () => {
+    activeSessionRef.value = null;
+    activeDraftProbeRef.value = {
+      agentId: "claude-code",
+      status: "starting",
+      acpSessionId: null,
+      configOptions: [],
+      availableCommands: [{ name: "init", description: "Initialize" }],
+    };
+    const wrapper = mountPanel();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-test="slash-button"]').exists()).toBe(false);
   });
 
   it("updates menu items when available commands change in the active session", async () => {
