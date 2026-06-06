@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.12.1] - 2026-06-06
+
+This patch release fixes an urgent codex-acp permission request handling issue. When `allow_always` was selected automatically, codex-acp only matched requests against already-approved command prefixes, so unapproved commands returned `user abort` and could not run. The app now selects `allow_once` so the current permission request can proceed as a one-time approval.
+
+### Fixed
+
+- Fixed ACP Agent permission request auto-handling selecting `allow_always`, which triggered codex-acp's approved-prefix matching limit and caused unapproved commands to return `user abort` instead of running
+
 ## [0.12.0] - 2026-06-04
 
 This release focuses on tightening the Chat experience, exposing session execution progress, and improving version visibility. The Settings About panel can now check GitHub official releases for newer versions directly from inside the app. Chat also gains an inline ACP execution plan panel, a loading skeleton for session history, and lower Markdown rendering overhead. In addition, Agent available commands returned during the probe stage are now captured and preserved on the session, and interrupted streaming replies now keep partially generated assistant content instead of dropping it outright.
