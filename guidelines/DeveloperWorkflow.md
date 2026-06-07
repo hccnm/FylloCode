@@ -14,6 +14,7 @@ keywords: [workflow, openspec, commands, pre-commit, review]
 
 - 适用于整个仓库。
 - 适用于 `AGENTS.md`、`package.json`、`openspec/specs/**`、`openspec/changes/**`、`simple-git-hooks`、`lint-staged`。
+- 适用于 `scripts/validate-commit-msg.mjs`。
 - 不替代具体技术主题 guideline；当任务涉及进程边界、IPC、数据模型、测试或构建时，必须继续查相应专题文档。
 
 ## Sources of Truth
@@ -25,6 +26,7 @@ keywords: [workflow, openspec, commands, pre-commit, review]
 - `guidelines/*.md`
 - `package.json#simple-git-hooks`
 - `package.json#lint-staged`
+- `scripts/validate-commit-msg.mjs`
 
 ## Rules
 
@@ -35,6 +37,7 @@ keywords: [workflow, openspec, commands, pre-commit, review]
 - MUST: 在无法判断“这是行为变化还是实现变化”时，先查 spec、代码和现有文档；若仍不能确定，再与需求方确认，而不是自行假设。
 - MUST: 使用 `pnpm` 命令驱动仓库脚本，不引入额外包管理器。
 - MUST: 尊重 pre-commit 流程：提交前至少让会被 `lint-staged` 处理的文件能够通过 Prettier/ESLint。
+- MUST: 尊重 commit-msg 流程：普通提交首行必须符合 `type(scope): summary`；可选正文必须在空行后使用 `- ` bullet；Git 自动/半自动生成的 `Merge ...`、`Revert ...`、`Squashed commit of the following:` 标题允许跳过该格式。
 - SHOULD: 根据改动范围选择最小但充分的验证命令；大多数代码改动至少应跑 `pnpm lint` 与相关测试。
 - SHOULD: 将 `pnpm lint` 视为类型感知静态检查入口；它会对 `**/*.{ts,mts,tsx,vue}` 源文件加载 TypeScript project service，因此 lint 失败可能来自 tsconfig 覆盖范围或类型信息解析问题。
 - SHOULD: 将 `pnpm test:coverage` 视为带 fail-under 阈值的覆盖率检查入口；当前 aggregate 阈值为 50/40/50/50，低于任一 statements、branches、functions、lines 指标时命令会失败。
@@ -56,11 +59,12 @@ keywords: [workflow, openspec, commands, pre-commit, review]
 - 静态检查：`pnpm lint`
 - 格式化：`pnpm format`
 - 全量测试：`pnpm test`
+- Commit message 校验：`node scripts/validate-commit-msg.mjs <commit-message-file>`
 - 覆盖率：`pnpm test:coverage`
 - 构建验证：`pnpm build`
 
 ## Maintenance
 
-- 当常用命令、OpenSpec 工作方式、pre-commit 规则、仓库 guideline 索引或包管理策略变化时，必须更新本文档。
+- 当常用命令、OpenSpec 工作方式、pre-commit/commit-msg 规则、仓库 guideline 索引或包管理策略变化时，必须更新本文档。
 - 当团队反复纠正同一种“先实现后补 spec”或“没读 guideline 就改边界”的问题时，应把该约束固化到本文档。
 - 如果顶层流程规则与具体专题 guideline 冲突，以更窄范围的专题规则为准，并回头修复不一致之处。

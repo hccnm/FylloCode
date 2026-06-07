@@ -50,6 +50,7 @@ export default defineConfig({
           hookTimeout: 30000,
           include: [
             "test/main/**/*.{test,spec}.ts",
+            "test/main/**/*.{test,spec}.mjs",
             "test/preload/**/*.{test,spec}.ts",
             "test/mcp-servers/**/*.{test,spec}.ts",
             "test/shared/**/*.{test,spec}.ts",

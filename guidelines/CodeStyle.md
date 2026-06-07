@@ -12,7 +12,7 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 
 ## Applicability
 
-- 适用于 `*.ts`、`*.mts`、`*.vue`、`*.json`、`*.md`、`*.html`、`*.css`。
+- 适用于 `*.js`、`*.mjs`、`*.cjs`、`*.ts`、`*.mts`、`*.vue`、`*.json`、`*.md`、`*.html`、`*.css`。
 - 适用于 `src/main/`、`src/preload/`、`src/renderer/`、`src/shared/`、`src/mcp-servers/`、`test/`、`scripts/`。
 - 不覆盖主进程/渲染进程的架构职责划分；见 `MainProcess.md` 和 `RendererProcess.md`。
 
@@ -34,7 +34,8 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 - MUST: 使用 pnpm 作为包管理器，使用 Prettier 和 ESLint 作为仓库默认格式化与静态检查工具。
 - MUST: 遵守 `.prettierrc` 与 `.editorconfig` 的统一格式：2 空格缩进、LF、UTF-8、保留分号、双引号、100 列行宽、对象括号内空格、函数参数允许 ES5 trailing comma。
 - MUST: 让 `eslint.config.mjs` 对 `**/*.{ts,mts,tsx,vue}` 源文件启用 TypeScript type-checked 规则集，并通过 project service 接通仓库 tsconfig 上下文；不要把生成文件或构建产物纳入类型感知 lint 来凑检查范围。
-- MUST: 让 `simple-git-hooks` + `lint-staged` 继续作为 pre-commit 防线；任何新增文件类型若需要自动格式化，应先更新仓库配置再写入 guideline。
+- MUST: 让 `simple-git-hooks` + `lint-staged` 继续作为 pre-commit 防线；代码类 staged 文件通过 `*.{js,mjs,cjs,ts,mts,vue}` 进入 ESLint/Prettier；任何新增文件类型若需要自动格式化，应先更新仓库配置再写入 guideline。
+- MUST: 让 `simple-git-hooks` 的 commit-msg hook 调用 `scripts/validate-commit-msg.mjs`，普通提交标题使用 `type(scope): summary`，可选正文使用 `- ` bullet；`Merge ...`、`Revert ...`、`Squashed commit of the following:` 为允许的 Git 生成标题例外。
 - MUST: 在 Vue 文件中使用 `<script setup lang="ts">`；缺少 `lang="ts"` 会被 ESLint 拦截。
 - MUST: 使用 kebab-case 命名目录和非组件 TypeScript 文件，使用 PascalCase 命名 Vue 组件文件。
 - MUST: 将类型、类、枚举命名为 PascalCase，将变量、函数、store action 命名为 camelCase。
@@ -68,5 +69,5 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 ## Maintenance
 
 - 当 Prettier、ESLint、EditorConfig、自动导入、Tailwind、图标体系或命名约定变化时，必须更新本文档。
-- 当仓库新增新的生成文件、格式化阶段或 pre-commit 规则时，必须同步更新 Rules 与 Verification。
+- 当仓库新增新的生成文件、格式化阶段或 pre-commit/commit-msg 规则时，必须同步更新 Rules 与 Verification。
 - 若某个目录因历史原因暂时偏离规范，应在本文档中明确例外来源，避免把例外误写成默认规则。
