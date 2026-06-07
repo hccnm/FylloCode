@@ -54,14 +54,47 @@ function buildFallbackSessionTitle(parts: ChatPromptPart[]): string {
   return Array.from(normalized).slice(0, FALLBACK_SESSION_TITLE_MAX_LENGTH).join("");
 }
 
+interface ChatSessionStreamState {
+  runId: number;
+  status: ChatStatus;
+  cancel: (() => void) | null;
+  error: StreamError | null;
+}
+
+interface DraftStreamState {
+  runId: number;
+  status: ChatStatus;
+  error: StreamError | null;
+}
+
 export const useChatStore = defineStore("chat", () => {
   const toast = useToast();
-  const chatStatus = ref<ChatStatus>("ready");
   const mode = ref<ModeType>("manual");
-  const cancelFn = ref<(() => void) | null>(null);
-  const streamError = ref<StreamError | null>(null);
-  const activeStreamRunId = ref(0);
+  const streamStateBySessionId = ref<Map<string, ChatSessionStreamState>>(new Map());
+  const draftStreamState = ref<DraftStreamState | null>(null);
+  let nextStreamRunId = 0;
   const pendingConfigIdSet = ref<Set<string>>(new Set());
+  const activeSessionStreamState = computed<ChatSessionStreamState | null>(() => {
+    const sessionId = useSessionStore().activeSessionId;
+    return sessionId ? (streamStateBySessionId.value.get(sessionId) ?? null) : null;
+  });
+  const chatStatus = computed<ChatStatus>(() => {
+    if (useSessionStore().activeSessionId === null) {
+      return draftStreamState.value?.status ?? "ready";
+    }
+
+    return activeSessionStreamState.value?.status ?? "ready";
+  });
+  const cancelFn = computed<(() => void) | null>(
+    () => activeSessionStreamState.value?.cancel ?? null
+  );
+  const streamError = computed<StreamError | null>(() => {
+    if (useSessionStore().activeSessionId === null) {
+      return draftStreamState.value?.error ?? null;
+    }
+
+    return activeSessionStreamState.value?.error ?? null;
+  });
   const pendingConfigIds = computed<ReadonlySet<string>>(() => pendingConfigIdSet.value);
 
   function markConfigOptionPending(configId: string): void {
@@ -77,28 +110,84 @@ export const useChatStore = defineStore("chat", () => {
     pendingConfigIdSet.value = next;
   }
 
-  function beginStreamRun(): number {
-    activeStreamRunId.value += 1;
-    return activeStreamRunId.value;
+  function nextRunId(): number {
+    nextStreamRunId += 1;
+    return nextStreamRunId;
   }
 
-  function isCurrentStreamRun(runId: number): boolean {
-    return activeStreamRunId.value === runId;
+  function setSessionStreamState(sessionId: string, state: ChatSessionStreamState | null): void {
+    const next = new Map(streamStateBySessionId.value);
+    if (state) {
+      next.set(sessionId, state);
+    } else {
+      next.delete(sessionId);
+    }
+    streamStateBySessionId.value = next;
   }
 
-  function clearActiveStreamControl(): void {
-    cancelFn.value = null;
+  function updateSessionStreamState(
+    sessionId: string,
+    updater: (state: ChatSessionStreamState) => ChatSessionStreamState | null
+  ): void {
+    const current = streamStateBySessionId.value.get(sessionId);
+    if (!current) {
+      return;
+    }
+
+    setSessionStreamState(sessionId, updater(current));
   }
 
-  function invalidateActiveStreamRun(): void {
-    beginStreamRun();
+  function beginSessionStreamRun(sessionId: string): number {
+    const runId = nextRunId();
+    setSessionStreamState(sessionId, {
+      runId,
+      status: "submitted",
+      cancel: null,
+      error: null,
+    });
+    return runId;
+  }
+
+  function beginDraftStreamRun(): number {
+    const runId = nextRunId();
+    draftStreamState.value = {
+      runId,
+      status: "submitted",
+      error: null,
+    };
+    return runId;
+  }
+
+  function isCurrentSessionRun(sessionId: string, runId: number): boolean {
+    return streamStateBySessionId.value.get(sessionId)?.runId === runId;
+  }
+
+  function isCurrentDraftRun(runId: number): boolean {
+    return draftStreamState.value?.runId === runId;
+  }
+
+  function clearDraftRunIfCurrent(runId: number): void {
+    if (isCurrentDraftRun(runId)) {
+      draftStreamState.value = null;
+    }
   }
 
   function resetChatState(): void {
-    invalidateActiveStreamRun();
-    chatStatus.value = "ready";
-    streamError.value = null;
-    clearActiveStreamControl();
+    const sessionId = useSessionStore().activeSessionId;
+    if (!sessionId) {
+      if (draftStreamState.value?.status === "error") {
+        draftStreamState.value = null;
+      }
+      return;
+    }
+
+    updateSessionStreamState(sessionId, (state) => {
+      if (state.status !== "error") {
+        return { ...state, error: null };
+      }
+
+      return null;
+    });
   }
 
   function queueUserMessage(
@@ -135,14 +224,15 @@ export const useChatStore = defineStore("chat", () => {
       sessionId: activeSession.id,
     });
 
-    cancelFn.value = chatApi.streamMessage(
+    const sessionId = activeSession.id;
+    const cancel = chatApi.streamMessage(
       activeSession.id,
       projectId,
       activeSession.agentId,
       parts,
       {
         onChunk(data) {
-          if (!isCurrentStreamRun(streamRunId)) {
+          if (!isCurrentSessionRun(sessionId, streamRunId)) {
             return;
           }
 
@@ -175,9 +265,11 @@ export const useChatStore = defineStore("chat", () => {
             case "reasoning_delta":
             case "tool_call_start":
             case "tool_call_update":
-              if (chatStatus.value === "submitted") {
-                chatStatus.value = "streaming";
-              }
+              updateSessionStreamState(sessionId, (state) =>
+                state.runId === streamRunId && state.status === "submitted"
+                  ? { ...state, status: "streaming" }
+                  : state
+              );
 
               assembler.applyChunk(data);
               return;
@@ -188,14 +280,12 @@ export const useChatStore = defineStore("chat", () => {
           }
         },
         onDone(done) {
-          if (!isCurrentStreamRun(streamRunId)) {
+          if (!isCurrentSessionRun(sessionId, streamRunId)) {
             return;
           }
 
           assembler.resetActive();
-          clearActiveStreamControl();
-          streamError.value = null;
-          chatStatus.value = "ready";
+          setSessionStreamState(sessionId, null);
           activeSession.tokenUsage = {
             ...activeSession.tokenUsage,
             used: activeSession.tokenUsage.used + done.totalTokens,
@@ -205,14 +295,17 @@ export const useChatStore = defineStore("chat", () => {
           sessionStore.sortSessions();
         },
         onError(err) {
-          if (!isCurrentStreamRun(streamRunId)) {
+          if (!isCurrentSessionRun(sessionId, streamRunId)) {
             return;
           }
 
           assembler.resetActive();
-          clearActiveStreamControl();
-          streamError.value = err;
-          chatStatus.value = "error";
+          setSessionStreamState(sessionId, {
+            runId: streamRunId,
+            status: "error",
+            cancel: null,
+            error: err,
+          });
           activeSession.status = "ended";
           activeSession.updatedAt = new Date();
           sessionStore.sortSessions();
@@ -220,6 +313,9 @@ export const useChatStore = defineStore("chat", () => {
         },
       },
       options
+    );
+    updateSessionStreamState(sessionId, (state) =>
+      state.runId === streamRunId ? { ...state, cancel } : state
     );
   }
 
@@ -240,8 +336,7 @@ export const useChatStore = defineStore("chat", () => {
 
     let activeSession = currentSession;
     let streamOptions: { acpSessionId?: string } = {};
-    const streamRunId = beginStreamRun();
-    streamError.value = null;
+    let streamRunId: number;
 
     if (!activeSession) {
       const draftAgentIdSnapshot = sessionStore.draftAgentId;
@@ -254,7 +349,7 @@ export const useChatStore = defineStore("chat", () => {
         return;
       }
 
-      chatStatus.value = "submitted";
+      streamRunId = beginDraftStreamRun();
       const fallbackTitleSnapshot = buildFallbackSessionTitle(parts);
       const probeBeforeCreate = sessionStore.draftProbeByAgent.get(draftAgentIdSnapshot);
       const carryProbe =
@@ -277,17 +372,24 @@ export const useChatStore = defineStore("chat", () => {
           title: fallbackTitleSnapshot,
           ...(carryProbe ?? {}),
         });
-        if (!isCurrentStreamRun(streamRunId)) {
+        if (!isCurrentDraftRun(streamRunId)) {
           return;
         }
         activeSession = sessionStore.activeSession ?? createdSession;
+        setSessionStreamState(activeSession.id, {
+          runId: streamRunId,
+          status: "submitted",
+          cancel: null,
+          error: null,
+        });
+        clearDraftRunIfCurrent(streamRunId);
         if (carryProbe) {
           streamOptions = { acpSessionId: carryProbe.acpSessionId };
           sessionStore.applyProbeUpdate(draftAgentIdSnapshot, null);
         }
       } catch (error: unknown) {
-        if (isCurrentStreamRun(streamRunId)) {
-          chatStatus.value = "ready";
+        if (isCurrentDraftRun(streamRunId)) {
+          clearDraftRunIfCurrent(streamRunId);
         }
         toast.add({
           title: "创建会话失败",
@@ -296,14 +398,15 @@ export const useChatStore = defineStore("chat", () => {
         });
         return;
       }
+    } else {
+      streamRunId = beginSessionStreamRun(activeSession.id);
     }
 
-    if (!isCurrentStreamRun(streamRunId)) {
+    if (!isCurrentSessionRun(activeSession.id, streamRunId)) {
       return;
     }
 
     const userMessage = queueUserMessage(activeSession, parts, sessionStore);
-    chatStatus.value = "submitted";
     persistMessage(activeSession.id, projectIdSnapshot, userMessage);
     streamSessionMessage(
       activeSession,
@@ -320,20 +423,29 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   function cancelStream(): void {
-    if (chatStatus.value !== "submitted" && chatStatus.value !== "streaming") {
+    const sessionStore = useSessionStore();
+    const sessionId = sessionStore.activeSessionId;
+    if (!sessionId) {
+      if (
+        draftStreamState.value?.status === "submitted" ||
+        draftStreamState.value?.status === "streaming"
+      ) {
+        draftStreamState.value = null;
+      }
       return;
     }
 
-    const currentCancel = cancelFn.value;
-    invalidateActiveStreamRun();
-    currentCancel?.();
-    clearActiveStreamControl();
-    streamError.value = null;
-    chatStatus.value = "ready";
+    const state = streamStateBySessionId.value.get(sessionId);
+    if (!state || (state.status !== "submitted" && state.status !== "streaming")) {
+      return;
+    }
 
-    const sessionStore = useSessionStore();
-    if (sessionStore.activeSession) {
-      sessionStore.activeSession.status = "ended";
+    setSessionStreamState(sessionId, null);
+    state.cancel?.();
+
+    const session = sessionStore.sessions.find((item) => item.id === sessionId);
+    if (session) {
+      session.status = "ended";
     }
   }
 

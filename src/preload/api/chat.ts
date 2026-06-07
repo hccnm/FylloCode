@@ -20,6 +20,96 @@ export interface StreamCallbacks {
   onError: (error: { code: string; message: string }) => void;
 }
 
+interface PendingChatStream {
+  sessionId: string;
+  callbacks: StreamCallbacks;
+  port: MessagePort | null;
+  cancelled: boolean;
+}
+
+const pendingChatStreams = new Map<string, PendingChatStream>();
+let streamPortListenerRegistered = false;
+let nextStreamSequence = 0;
+
+function createStreamId(): string {
+  nextStreamSequence += 1;
+  return `chat-stream-${Date.now()}-${nextStreamSequence}`;
+}
+
+function getPayloadStreamId(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const streamId = (payload as { streamId?: unknown }).streamId;
+  return typeof streamId === "string" && streamId.length > 0 ? streamId : null;
+}
+
+function closePort(port: MessagePort | null): void {
+  try {
+    port?.close();
+  } catch {
+    /* ignore */
+  }
+}
+
+function bindStreamPort(streamId: string, port: MessagePort): void {
+  const pending = pendingChatStreams.get(streamId);
+  if (!pending) {
+    closePort(port);
+    return;
+  }
+
+  pending.port = port;
+  if (pending.cancelled) {
+    closePort(port);
+    pendingChatStreams.delete(streamId);
+    return;
+  }
+
+  port.onmessage = ({ data }) => {
+    if (data.type === "chunk") {
+      pending.callbacks.onChunk(data.data);
+      return;
+    }
+
+    if (data.type === "done") {
+      pending.callbacks.onDone(data.data);
+      pendingChatStreams.delete(streamId);
+      return;
+    }
+
+    if (data.type === "error") {
+      pending.callbacks.onError(data.data);
+      pendingChatStreams.delete(streamId);
+    }
+  };
+  port.start();
+  port.postMessage({ type: "ready" });
+}
+
+function ensureStreamPortListener(): void {
+  if (streamPortListenerRegistered) {
+    return;
+  }
+
+  ipcRenderer.on(ChatStreamChannels.streamPort, (event, payload: unknown) => {
+    const port = event.ports[0] ?? null;
+    if (!port) {
+      return;
+    }
+
+    const streamId = getPayloadStreamId(payload);
+    if (!streamId) {
+      closePort(port);
+      return;
+    }
+
+    bindStreamPort(streamId, port);
+  });
+  streamPortListenerRegistered = true;
+}
+
 export const chatApi = {
   listSessions(query: {
     projectId: string;
@@ -68,12 +158,20 @@ export const chatApi = {
     callbacks: StreamCallbacks,
     options?: { acpSessionId?: string }
   ): () => void {
-    let port: MessagePort | null = null;
-    let cancelled = false;
+    ensureStreamPortListener();
+
+    const streamId = createStreamId();
+    pendingChatStreams.set(streamId, {
+      sessionId,
+      callbacks,
+      port: null,
+      cancelled: false,
+    });
 
     // Invoke to trigger main to create MessagePort and start streaming
     void ipcRenderer
       .invoke(ChatStreamChannels.streamMessage, {
+        streamId,
         sessionId,
         projectId,
         agentId,
@@ -81,44 +179,29 @@ export const chatApi = {
         ...(options?.acpSessionId ? { acpSessionId: options.acpSessionId } : {}),
       })
       .catch((error: unknown) => {
-        callbacks.onError({
+        const pending = pendingChatStreams.get(streamId);
+        pendingChatStreams.delete(streamId);
+        closePort(pending?.port ?? null);
+        if (pending?.cancelled) {
+          return;
+        }
+
+        pending?.callbacks.onError({
           code: "STREAM_INIT_FAILED",
           message: error instanceof Error ? error.message : String(error),
         });
       });
 
-    // Receive the port from main
-    ipcRenderer.once(ChatStreamChannels.streamPort, (event) => {
-      port = event.ports[0] ?? null;
-      if (!port) {
-        return;
-      }
-
-      if (cancelled) {
-        port.close();
-        port = null;
-        return;
-      }
-
-      port.onmessage = ({ data }) => {
-        if (data.type === "chunk") callbacks.onChunk(data.data);
-        else if (data.type === "done") callbacks.onDone(data.data);
-        else if (data.type === "error") callbacks.onError(data.data);
-      };
-      port.start();
-      // Signal main that onmessage is registered and we're ready to receive chunks
-      port.postMessage({ type: "ready" });
-    });
-
     return () => {
-      if (cancelled) {
+      const pending = pendingChatStreams.get(streamId);
+      if (!pending || pending.cancelled) {
         return;
       }
 
-      cancelled = true;
+      pending.cancelled = true;
       void ipcRenderer.invoke(ChatStreamChannels.streamCancel, { sessionId });
-      port?.close();
-      port = null;
+      closePort(pending.port);
+      pendingChatStreams.delete(streamId);
     };
   },
 

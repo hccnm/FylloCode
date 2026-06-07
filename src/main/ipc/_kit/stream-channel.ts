@@ -28,6 +28,8 @@ export interface MakeStreamChannelOptions {
   event: IpcMainInvokeEvent;
   /** The `domain:stream:port` channel name the renderer will listen on. */
   portChannel: string;
+  /** Optional payload sent with the transferred MessagePort. Defaults to null. */
+  portPayload?: unknown;
   /** A tag used to prefix diagnostic logs. */
   logTag: string;
   /**
@@ -43,7 +45,7 @@ export interface MakeStreamChannelOptions {
  * every `<domain>:stream:*` IPC handler.
  *
  * Protocol:
- *   main -> renderer: postMessage(portChannel, null, [port2])
+ *   main -> renderer: postMessage(portChannel, portPayload ?? null, [port2])
  *   renderer -> main: port.postMessage({ type: "ready" })
  *   main -> renderer: many { type: "chunk", data }
  *                     finally  { type: "done", data: { totalTokens } }
@@ -51,11 +53,11 @@ export interface MakeStreamChannelOptions {
  *   renderer (optional): close port to cancel
  */
 export function makeStreamChannel(options: MakeStreamChannelOptions): IpcResponse<null> {
-  const { event, portChannel, logTag, onReady } = options;
+  const { event, portChannel, portPayload = null, logTag, onReady } = options;
 
   try {
     const { port1, port2 } = new MessageChannelMain();
-    event.sender.postMessage(portChannel, null, [port2]);
+    event.sender.postMessage(portChannel, portPayload, [port2]);
 
     const state = createStreamState(port1, logTag);
     let runner: StreamRunner | null = null;

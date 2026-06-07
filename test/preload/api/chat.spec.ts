@@ -36,12 +36,28 @@ function createPort(): PortStub {
   };
 }
 
-function emitStreamPort(port: PortStub): void {
-  const handler = mocks.ipcRenderer.once.mock.calls.find(
+function textParts(text: string): [{ type: "text"; text: string }] {
+  return [{ type: "text", text }];
+}
+
+function streamPortListener(): (event: { ports: PortStub[] }, payload: unknown) => void {
+  const handler = mocks.ipcRenderer.on.mock.calls.find(
     ([channel]) => channel === ChatStreamChannels.streamPort
   )?.[1];
   expect(handler).toBeTypeOf("function");
-  handler({ ports: [port] });
+  return handler as (event: { ports: PortStub[] }, payload: unknown) => void;
+}
+
+function streamInvokePayload(index = 0): { streamId: string } {
+  const payload = mocks.ipcRenderer.invoke.mock.calls.filter(
+    ([channel]) => channel === ChatStreamChannels.streamMessage
+  )[index]?.[1] as { streamId?: string } | undefined;
+  expect(payload?.streamId).toBeTypeOf("string");
+  return payload as { streamId: string };
+}
+
+function emitStreamPort(port: PortStub, streamId = streamInvokePayload().streamId): void {
+  streamPortListener()({ ports: [port] }, { streamId });
 }
 
 describe("preload chatApi.streamMessage", () => {
@@ -112,6 +128,48 @@ describe("preload chatApi.streamMessage", () => {
     expect(port.postMessage).not.toHaveBeenCalled();
   });
 
+  it("binds concurrent MessagePorts by streamId even when ports arrive out of order", async () => {
+    const { chatApi } = await import("@preload/api/chat");
+    const callbacksA = { onChunk: vi.fn(), onDone: vi.fn(), onError: vi.fn() };
+    const callbacksB = { onChunk: vi.fn(), onDone: vi.fn(), onError: vi.fn() };
+    const portA = createPort();
+    const portB = createPort();
+
+    chatApi.streamMessage("session-a", "project-1", "agent-1", textParts("A"), callbacksA);
+    chatApi.streamMessage("session-b", "project-1", "agent-1", textParts("B"), callbacksB);
+
+    const streamA = streamInvokePayload(0).streamId;
+    const streamB = streamInvokePayload(1).streamId;
+    expect(streamA).not.toBe(streamB);
+
+    emitStreamPort(portB, streamB);
+    portB.onmessage?.({ data: { type: "chunk", data: { kind: "text_delta", text: "B" } } });
+
+    expect(callbacksB.onChunk).toHaveBeenCalledWith({ kind: "text_delta", text: "B" });
+    expect(callbacksA.onChunk).not.toHaveBeenCalled();
+    expect(portA.start).not.toHaveBeenCalled();
+
+    emitStreamPort(portA, streamA);
+    portA.onmessage?.({ data: { type: "done", data: { totalTokens: 2 } } });
+
+    expect(callbacksA.onDone).toHaveBeenCalledWith({ totalTokens: 2 });
+  });
+
+  it("closes an unmatched stream port without invoking callbacks", async () => {
+    const { chatApi } = await import("@preload/api/chat");
+    const callbacks = { onChunk: vi.fn(), onDone: vi.fn(), onError: vi.fn() };
+    const unmatchedPort = createPort();
+
+    chatApi.streamMessage("session-1", "project-1", "agent-1", textParts("hello"), callbacks);
+    emitStreamPort(unmatchedPort, "missing-stream");
+
+    expect(unmatchedPort.close).toHaveBeenCalledTimes(1);
+    expect(unmatchedPort.start).not.toHaveBeenCalled();
+    expect(callbacks.onChunk).not.toHaveBeenCalled();
+    expect(callbacks.onDone).not.toHaveBeenCalled();
+    expect(callbacks.onError).not.toHaveBeenCalled();
+  });
+
   it("invokes readAttachmentDataUrl on the correct channel", async () => {
     const { chatApi } = await import("@preload/api/chat");
 
@@ -160,6 +218,7 @@ describe("preload chatApi.streamMessage", () => {
     );
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatStreamChannels.streamMessage, {
+      streamId: expect.any(String),
       sessionId: "session-1",
       projectId: "project-1",
       agentId: "agent-1",

@@ -22,6 +22,7 @@ const resetChatState = vi.fn(() => {
   chatStatusRef.value = "ready";
   streamErrorRef.value = null;
 });
+const cancelStream = vi.fn();
 
 vi.stubGlobal(
   "prompt",
@@ -46,6 +47,7 @@ vi.mock("@renderer/stores", () => ({
     chatStatus: computed(() => chatStatusRef.value),
     streamError: computed(() => streamErrorRef.value),
     resetChatState,
+    cancelStream,
   }),
 }));
 
@@ -83,9 +85,10 @@ describe("SessionItem", () => {
     renameSession.mockClear();
     deleteSession.mockClear();
     resetChatState.mockClear();
+    cancelStream.mockClear();
   });
 
-  it("resets transient chat state after switching sessions", async () => {
+  it("clears transient view state without stopping streams after switching sessions", async () => {
     const wrapper = mount(SessionItem, {
       props: {
         session: makeSession("session-2"),
@@ -109,6 +112,7 @@ describe("SessionItem", () => {
 
     expect(selectSession).toHaveBeenCalledWith("session-2");
     expect(resetChatState).toHaveBeenCalledTimes(1);
+    expect(cancelStream).not.toHaveBeenCalled();
     expect(chatStatusRef.value).toBe("ready");
     expect(streamErrorRef.value).toBeNull();
     expect(activeSessionIdRef.value).toBe("session-2");

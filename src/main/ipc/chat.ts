@@ -207,6 +207,7 @@ export function registerChatHandlers(): void {
   ipcMain.handle(ChatStreamChannels.streamMessage, (event, input: unknown) => {
     const {
       sessionId,
+      streamId,
       projectId,
       agentId: inputAgentId,
       prompt,
@@ -216,6 +217,7 @@ export function registerChatHandlers(): void {
     return makeStreamChannel({
       event,
       portChannel: ChatStreamChannels.streamPort,
+      portPayload: { streamId },
       logTag: "chat",
       onReady: async (sink) => {
         const projectPath = await resolveProjectPath(projectId);

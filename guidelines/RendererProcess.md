@@ -89,6 +89,12 @@ keywords: [renderer, vue, pinia, routing, ui]
 - `ConfigOptionsBar` 在已建立 session 时读取 `activeSession.configOptions`，草稿态只在 `activeDraftProbe.status === "ready"` 时读取 probe config options；starting/failed/null 均不渲染。
 - `sendMessage` 在草稿态创建首个 fyllo session 时，必须使用创建前捕获的 probe 快照：当快照为 `ready` 且 `acpSessionId` 非空时，把 `configOptions` 与 `acpSessionId` 一并透传给 `useSessionStore.createSession`，`createSession` resolve 后再调用 `applyProbeUpdate(agentId, null)` 清空 draft probe；后续 `chatApi.streamMessage` 仍传同一个 `acpSessionId`。`createSession` 抛错路径下不清空 draft probe，让下次发送复用同一快照。
 
+## Chat Session Streams
+
+- `useChatStore` 必须按已建立的 `sessionId` 维护 chat stream run、status、cancel 和瞬时 error；组件消费的 `chatStatus`、`streamError`、`cancelFn` 只能从当前 `useSessionStore.activeSessionId` 对应 session 派生，草稿态或无运行态时回落为 `ready` / `null`。
+- 选择 session 或进入草稿态只能清当前视图瞬时错误，不得取消、失效或清空其他 session 的后台 stream。只有显式 stop 可以取消当前选中 session 的 run，或取消仍处于首条消息 setup 阶段的 pending draft run。
+- 后台 session 的有效 stream 回调必须继续更新所属 session 的内存消息、标题、token usage、可用命令、配置选项、计划状态和 session 状态；切回已加载 session 时应显示这份内存最新状态，而不是依赖重新读磁盘修正丢失的 chunk。
+
 ## Verification
 
 - `pnpm lint`

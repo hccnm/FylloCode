@@ -8,6 +8,7 @@ import { useSessionStore } from "@renderer/stores/session";
 import { chatApi, type StreamCallbacks } from "@renderer/api/chat";
 import { projectApi } from "@renderer/api/project";
 import type { AcpRegistry, AcpAgentStatus } from "@shared/types/acp-agent";
+import type { Session } from "@shared/types/chat";
 
 vi.mock("@renderer/api/chat", () => ({
   chatApi: {
@@ -84,6 +85,22 @@ function deferred<T>(): {
 
 function textParts(text: string): [{ type: "text"; text: string }] {
   return [{ type: "text", text }];
+}
+
+function makeSession(overrides: Partial<Session> = {}): Session {
+  return {
+    id: "session-1",
+    projectId: "project-1",
+    agentId: "claude-code",
+    title: "Session",
+    status: "ended",
+    turnCount: 0,
+    tokenUsage: { used: 0, size: 0 },
+    createdAt: new Date("2026-04-30T08:00:00.000Z"),
+    updatedAt: new Date("2026-04-30T08:00:00.000Z"),
+    messages: [],
+    ...overrides,
+  };
 }
 
 function prepareDraftConversation(): void {
@@ -837,6 +854,188 @@ describe("useChatStore", () => {
     expect(chatStore.chatStatus).toBe("error");
     expect(chatStore.cancelFn).toBeNull();
     expect(sessionStore.activeSession?.status).toBe("ended");
+  });
+
+  it("keeps receiving background session chunks after switching sessions", async () => {
+    prepareDraftConversation();
+    const projectStore = useProjectStore();
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [
+      makeSession({
+        id: "session-a",
+        title: "Session A",
+        messages: [
+          {
+            id: "existing-a",
+            role: "user",
+            parts: [{ type: "text", text: "existing A" }],
+            metadata: { sessionId: "session-a", createdAt: new Date() },
+          },
+        ],
+      }),
+      makeSession({
+        id: "session-b",
+        title: "Session B",
+        messages: [
+          {
+            id: "existing-b",
+            role: "user",
+            parts: [{ type: "text", text: "existing B" }],
+            metadata: { sessionId: "session-b", createdAt: new Date() },
+          },
+        ],
+      }),
+    ];
+    sessionStore.activeSessionId = "session-a";
+
+    const callbacksBySession = new Map<string, StreamCallbacks>();
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (sessionId, _projectId, _agentId, _prompt, callbacks) => {
+        callbacksBySession.set(sessionId, callbacks);
+        return () => {};
+      }
+    );
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage(textParts("run A"));
+    expect(chatStore.chatStatus).toBe("submitted");
+
+    await sessionStore.selectSession("session-b");
+    expect(chatStore.chatStatus).toBe("ready");
+
+    callbacksBySession.get("session-a")!.onChunk({ kind: "text_delta", text: "background A" });
+
+    const sessionA = sessionStore.sessions.find((session) => session.id === "session-a")!;
+    const sessionB = sessionStore.sessions.find((session) => session.id === "session-b")!;
+    expect(sessionA.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      parts: [{ type: "text", text: "background A" }],
+    });
+    expect(sessionB.messages).toHaveLength(1);
+    expect(chatStore.chatStatus).toBe("ready");
+    expect(projectStore.currentProject?.id).toBe("project-1");
+  });
+
+  it("keeps background completion in memory when switching back to the session", async () => {
+    prepareDraftConversation();
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [
+      makeSession({
+        id: "session-a",
+        title: "Session A",
+        tokenUsage: { used: 10, size: 100 },
+        messages: [
+          {
+            id: "existing-a",
+            role: "user",
+            parts: [{ type: "text", text: "existing A" }],
+            metadata: { sessionId: "session-a", createdAt: new Date() },
+          },
+        ],
+      }),
+      makeSession({
+        id: "session-b",
+        title: "Session B",
+        messages: [
+          {
+            id: "existing-b",
+            role: "user",
+            parts: [{ type: "text", text: "existing B" }],
+            metadata: { sessionId: "session-b", createdAt: new Date() },
+          },
+        ],
+      }),
+    ];
+    sessionStore.activeSessionId = "session-a";
+
+    const callbacksBySession = new Map<string, StreamCallbacks>();
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (sessionId, _projectId, _agentId, _prompt, callbacks) => {
+        callbacksBySession.set(sessionId, callbacks);
+        return () => {};
+      }
+    );
+
+    await useChatStore().sendMessage(textParts("run A"));
+    await sessionStore.selectSession("session-b");
+
+    callbacksBySession.get("session-a")!.onChunk({ kind: "text_delta", text: "done A" });
+    callbacksBySession.get("session-a")!.onDone({ totalTokens: 7 });
+
+    const sessionA = sessionStore.sessions.find((session) => session.id === "session-a")!;
+    expect(sessionA.status).toBe("ended");
+    expect(sessionA.tokenUsage.used).toBe(17);
+
+    await sessionStore.selectSession("session-a");
+
+    expect(sessionStore.activeSession?.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      parts: [{ type: "text", text: "done A" }],
+    });
+    expect(useChatStore().chatStatus).toBe("ready");
+  });
+
+  it("stops only the current session while another session continues streaming", async () => {
+    prepareDraftConversation();
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [
+      makeSession({
+        id: "session-a",
+        messages: [
+          {
+            id: "existing-a",
+            role: "user",
+            parts: [{ type: "text", text: "existing A" }],
+            metadata: { sessionId: "session-a", createdAt: new Date() },
+          },
+        ],
+      }),
+      makeSession({
+        id: "session-b",
+        messages: [
+          {
+            id: "existing-b",
+            role: "user",
+            parts: [{ type: "text", text: "existing B" }],
+            metadata: { sessionId: "session-b", createdAt: new Date() },
+          },
+        ],
+      }),
+    ];
+    sessionStore.activeSessionId = "session-a";
+
+    const callbacksBySession = new Map<string, StreamCallbacks>();
+    const cancelBySession = new Map<string, ReturnType<typeof vi.fn>>();
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (sessionId, _projectId, _agentId, _prompt, callbacks) => {
+        callbacksBySession.set(sessionId, callbacks);
+        const cancel = vi.fn();
+        cancelBySession.set(sessionId, cancel);
+        return cancel;
+      }
+    );
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage(textParts("run A"));
+    await sessionStore.selectSession("session-b");
+    await chatStore.sendMessage(textParts("run B"));
+
+    chatStore.cancelStream();
+
+    expect(cancelBySession.get("session-b")).toHaveBeenCalledTimes(1);
+    expect(cancelBySession.get("session-a")).not.toHaveBeenCalled();
+    expect(chatStore.chatStatus).toBe("ready");
+
+    callbacksBySession.get("session-b")!.onChunk({ kind: "text_delta", text: "late B" });
+    callbacksBySession.get("session-a")!.onChunk({ kind: "text_delta", text: "still A" });
+
+    const sessionA = sessionStore.sessions.find((session) => session.id === "session-a")!;
+    const sessionB = sessionStore.sessions.find((session) => session.id === "session-b")!;
+    expect(sessionA.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      parts: [{ type: "text", text: "still A" }],
+    });
+    expect(sessionB.messages.some((message) => message.role === "assistant")).toBe(false);
   });
 
   it("resetChatState only resets chat transient state", async () => {

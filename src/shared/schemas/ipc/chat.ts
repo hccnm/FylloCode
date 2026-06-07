@@ -129,6 +129,7 @@ export const readAttachmentDataUrlInputSchema = z.object({
 });
 
 export const streamMessageInputSchema = z.object({
+  streamId: z.string().min(1),
   sessionId: z.string().min(1),
   projectId: z.string().min(1),
   agentId: z.string(),

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
         sendError: ReturnType<typeof vi.fn>;
       }) => unknown)
     | null = null;
+  let streamChannelOptions: { portPayload?: unknown } | null = null;
 
   return {
     appendMessage: vi.fn(),
@@ -49,6 +50,12 @@ const mocks = vi.hoisted(() => {
     },
     set onReady(next) {
       onReady = next;
+    },
+    get streamChannelOptions() {
+      return streamChannelOptions;
+    },
+    set streamChannelOptions(next) {
+      streamChannelOptions = next;
     },
   };
 });
@@ -136,6 +143,7 @@ vi.mock("@main/services/chat/message-assembler", () => ({
 
 vi.mock("@main/ipc/_kit/stream-channel", () => ({
   makeStreamChannel: vi.fn((options) => {
+    mocks.streamChannelOptions = options;
     mocks.onReady = options.onReady;
     return { ok: true, data: null };
   }),
@@ -146,6 +154,7 @@ describe("registerChatHandlers", () => {
     vi.clearAllMocks();
     mocks.eventHandler = null;
     mocks.onReady = null;
+    mocks.streamChannelOptions = null;
     mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
     mocks.loadSessionMeta.mockResolvedValue({
       sessionId: "session-1",
@@ -284,6 +293,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -312,6 +322,26 @@ describe("registerChatHandlers", () => {
     );
   });
 
+  it("passes streamId to makeStreamChannel as port payload", () => {
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        streamId: "stream-custom",
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+      }
+    );
+
+    expect(mocks.streamChannelOptions).toEqual(
+      expect.objectContaining({
+        portChannel: ChatStreamChannels.streamPort,
+        portPayload: { streamId: "stream-custom" },
+      })
+    );
+  });
+
   it("persists assembled assistant message on error", async () => {
     mocks.assemblerFlush.mockReturnValueOnce({
       id: "assistant-message-err",
@@ -326,6 +356,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -365,6 +396,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -404,6 +436,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -429,6 +462,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -452,6 +486,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -514,6 +549,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -554,6 +590,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "",
@@ -578,6 +615,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -610,6 +648,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -654,6 +693,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -694,6 +734,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -732,6 +773,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -870,6 +912,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -908,6 +951,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
@@ -940,6 +984,7 @@ describe("registerChatHandlers", () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
+        streamId: "stream-1",
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
