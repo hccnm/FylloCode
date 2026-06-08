@@ -106,7 +106,8 @@ function mockUserTextOverflow(isOverflowing: (text: string) => boolean): void {
 function mountList(
   messages: UIMessage<MessageMeta>[],
   status: ChatStatus = "ready",
-  agentId?: string
+  agentId?: string,
+  type: "chat" | "side" = "chat"
 ): VueWrapper {
   const chatMessagesStub = {
     props: ["messages", "status"],
@@ -124,15 +125,16 @@ function mountList(
     props: {
       messages,
       status,
-      type: "chat",
+      type,
       agentId,
     },
     global: {
       plugins: [createPinia()],
       stubs: {
         MarkStream: {
-          props: ["content", "isStreaming", "isDark"],
-          template: '<div data-test="markdown">{{ content }}</div>',
+          props: ["content", "isStreaming", "isDark", "enableActions", "actionContext"],
+          template:
+            '<div data-test="markdown" :data-enable-actions="String(enableActions)">{{ content }}</div>',
         },
         UChatMessages: chatMessagesStub,
         ChatMessages: chatMessagesStub,
@@ -164,6 +166,18 @@ describe("UIMessageList", () => {
     const wrapper = mountList([textMessage()]);
 
     expect(wrapper.text()).toContain("hello");
+  });
+
+  it("enables Fyllo actions only in chat message lists", () => {
+    const chatWrapper = mountList([textMessage()]);
+    const sideWrapper = mountList([textMessage()], "ready", undefined, "side");
+
+    expect(chatWrapper.get('[data-test="markdown"]').attributes("data-enable-actions")).toBe(
+      "true"
+    );
+    expect(sideWrapper.get('[data-test="markdown"]').attributes("data-enable-actions")).toBe(
+      "false"
+    );
   });
 
   it("renders dynamic tool parts", () => {

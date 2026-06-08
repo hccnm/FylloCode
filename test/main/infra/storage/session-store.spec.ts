@@ -124,6 +124,79 @@ describe("session-store", () => {
     );
   });
 
+  it("round-trips actionStates and preserves them while patching other meta fields", async () => {
+    await createSessionMeta(
+      projectPath,
+      meta({
+        actionStates: {
+          "chat:session-1:0:0:0": {
+            type: "task.create",
+            status: "succeeded",
+            updatedAt: "2026-06-08T00:00:00.000Z",
+          },
+        },
+      })
+    );
+
+    await expect(
+      patchSessionMeta(projectPath, "session-1", {
+        available_commands: [{ name: "review", description: "Review code" }],
+      })
+    ).resolves.toEqual(
+      meta({
+        available_commands: [{ name: "review", description: "Review code" }],
+        actionStates: {
+          "chat:session-1:0:0:0": {
+            type: "task.create",
+            status: "succeeded",
+            updatedAt: "2026-06-08T00:00:00.000Z",
+          },
+        },
+      })
+    );
+  });
+
+  it("normalizes invalid actionStates to undefined", async () => {
+    mkdirSync(dirname(sessionMetaPath("session-2")), { recursive: true });
+    writeFileSync(
+      sessionMetaPath("session-2"),
+      JSON.stringify({
+        ...meta({ sessionId: "session-2" }),
+        actionStates: {
+          valid: {
+            type: "task.create",
+            status: "cancelled",
+            updatedAt: "2026-06-08T00:00:00.000Z",
+          },
+          invalidType: {
+            type: "task.delete",
+            status: "cancelled",
+            updatedAt: "2026-06-08T00:00:00.000Z",
+          },
+          invalidStatus: {
+            type: "task.create",
+            status: "ready",
+            updatedAt: "2026-06-08T00:00:00.000Z",
+          },
+        },
+      }),
+      "utf8"
+    );
+
+    await expect(loadSessionMeta(projectPath, "session-2")).resolves.toEqual(
+      meta({
+        sessionId: "session-2",
+        actionStates: {
+          valid: {
+            type: "task.create",
+            status: "cancelled",
+            updatedAt: "2026-06-08T00:00:00.000Z",
+          },
+        },
+      })
+    );
+  });
+
   it("preserves unknown fields when patching existing session meta", async () => {
     mkdirSync(dirname(sessionMetaPath()), { recursive: true });
     writeFileSync(

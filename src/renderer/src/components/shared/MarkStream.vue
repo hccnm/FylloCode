@@ -1,17 +1,91 @@
 <script setup lang="ts">
-import MarkdownRender from "markstream-vue";
+import MarkdownRender, { removeCustomComponents, setCustomComponents } from "markstream-vue";
+import { computed, onBeforeUnmount, provide, watch } from "vue";
+import FylloActionNode from "@renderer/components/shared/markstream/FylloActionNode.vue";
+import {
+  createFylloActionOrdinalResolver,
+  fylloActionHostContextKey,
+  type FylloActionContextInput,
+} from "@renderer/components/shared/markstream/fyllo-action-context";
+
+const fylloActionCustomHtmlTags = ["fyllo-action"] as const;
 
 const props = defineProps<{
   id: string;
   content: string;
   isStreaming: boolean;
   isDark: boolean;
+  enableActions?: boolean;
+  actionContext?: FylloActionContextInput;
 }>();
+
+const customHtmlTags = computed(() =>
+  props.enableActions ? fylloActionCustomHtmlTags : undefined
+);
+
+let registeredCustomId: string | null = null;
+let actionOrdinalResolver = createFylloActionOrdinalResolver(props.content);
+
+provide(fylloActionHostContextKey, {
+  get sessionId() {
+    return props.actionContext?.sessionId ?? "";
+  },
+  get messageIndex() {
+    return props.actionContext?.messageIndex ?? -1;
+  },
+  get partIndex() {
+    return props.actionContext?.partIndex ?? -1;
+  },
+  resolveActionOrdinal(node) {
+    return actionOrdinalResolver(node);
+  },
+  getActionState(actionId) {
+    return props.actionContext?.actionStates?.[actionId];
+  },
+  persistActionState(actionId, state) {
+    return props.actionContext?.persistActionState?.(actionId, state) ?? Promise.resolve();
+  },
+});
+
+function removeRegisteredCustomComponents(): void {
+  if (!registeredCustomId) {
+    return;
+  }
+
+  removeCustomComponents(registeredCustomId);
+  registeredCustomId = null;
+}
+
+function registerFylloActionComponents(): void {
+  if (!props.enableActions) {
+    return;
+  }
+
+  setCustomComponents(props.id, {
+    "fyllo-action": FylloActionNode,
+  });
+  registeredCustomId = props.id;
+}
+
+watch(
+  () => [props.id, props.enableActions] as const,
+  () => {
+    actionOrdinalResolver = createFylloActionOrdinalResolver(props.content);
+    removeRegisteredCustomComponents();
+    registerFylloActionComponents();
+  },
+  { immediate: true }
+);
+
+onBeforeUnmount(() => {
+  removeRegisteredCustomComponents();
+});
 </script>
 
 <template>
   <MarkdownRender
     :custom-id="id"
+    :custom-html-tags="customHtmlTags"
     :content="content"
     :final="!isStreaming"
     :fade="false"

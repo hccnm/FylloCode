@@ -4,11 +4,39 @@ import { isReasoningUIPart, isTextUIPart, isToolUIPart } from "ai";
 import { isPartStreaming, isToolStreaming } from "@nuxt/ui/utils/ai";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import { getToolText, getToolSuffix, getToolOutput } from "@renderer/utils/chatTool";
+import { useSessionStore } from "@renderer/stores/session";
+import type { FylloActionState } from "@shared/types/fyllo-action";
 
 const props = defineProps<{
   message: UIMessage;
   isDark: boolean;
+  enableActions?: boolean;
+  sessionId?: string | null;
+  messageIndex?: number;
+  actionStates?: Record<string, FylloActionState>;
 }>();
+
+const sessionStore = useSessionStore();
+
+function buildActionContext(partIndex: number) {
+  if (
+    !props.enableActions ||
+    !props.sessionId ||
+    props.messageIndex === undefined ||
+    props.messageIndex < 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    sessionId: props.sessionId,
+    messageIndex: props.messageIndex,
+    partIndex,
+    actionStates: props.actionStates,
+    persistActionState: (actionId: string, state: FylloActionState) =>
+      sessionStore.persistSessionActionState(props.sessionId!, actionId, state),
+  };
+}
 </script>
 
 <template>
@@ -27,6 +55,7 @@ const props = defineProps<{
         :content="part.text"
         :is-streaming="isPartStreaming(part)"
         :is-dark="props.isDark"
+        :enable-actions="false"
       />
     </UChatReasoning>
 
@@ -47,6 +76,8 @@ const props = defineProps<{
       :content="part.text"
       :is-streaming="isPartStreaming(part)"
       :is-dark="props.isDark"
+      :enable-actions="Boolean(buildActionContext(index))"
+      :action-context="buildActionContext(index)"
     />
   </template>
 </template>

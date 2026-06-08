@@ -23,7 +23,11 @@ vi.mock("@main/infra/storage/session-store", () => ({
   patchSessionMeta: mocks.patchSessionMeta,
 }));
 
-import { listSessions, createSession } from "@main/services/chat/chat-service";
+import {
+  createSession,
+  listSessions,
+  setSessionActionState,
+} from "@main/services/chat/chat-service";
 
 function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   return {
@@ -91,6 +95,95 @@ describe("chat-service", () => {
     expect(sessions[0]?.configOptions).toEqual([
       expect.objectContaining({ id: "model", currentValue: "sonnet" }),
     ]);
+  });
+
+  it("maps persisted actionStates when listing sessions", async () => {
+    mocks.listSessionMetas.mockResolvedValue([
+      meta({
+        actionStates: {
+          "chat:session-1:0:0:0": {
+            type: "task.create",
+            status: "succeeded",
+            updatedAt: "2026-06-08T00:00:00.000Z",
+          },
+        },
+      }),
+    ]);
+
+    const sessions = await listSessions("project-1");
+
+    expect(sessions[0]?.actionStates).toEqual({
+      "chat:session-1:0:0:0": {
+        type: "task.create",
+        status: "succeeded",
+        updatedAt: "2026-06-08T00:00:00.000Z",
+      },
+    });
+  });
+
+  it("setSessionActionState merges one action state without dropping existing states", async () => {
+    const currentMeta = meta({
+      actionStates: {
+        "chat:session-1:0:0:0": {
+          type: "task.create",
+          status: "succeeded",
+          updatedAt: "2026-06-08T00:00:00.000Z",
+        },
+      },
+      available_commands: [{ name: "review", description: "Review code" }],
+      configOptions: [],
+    });
+    mocks.patchSessionMeta.mockImplementation(async (_projectPath, _sessionId, patch) => {
+      const nextPatch = typeof patch === "function" ? patch(currentMeta) : patch;
+      return {
+        ...currentMeta,
+        ...nextPatch,
+      };
+    });
+
+    await expect(
+      setSessionActionState({
+        projectId: "project-1",
+        sessionId: "session-1",
+        actionId: "chat:session-1:0:0:1",
+        state: {
+          type: "task.create",
+          status: "cancelled",
+          updatedAt: "2026-06-08T00:00:01.000Z",
+        },
+      })
+    ).resolves.toEqual({
+      actionStates: {
+        "chat:session-1:0:0:0": {
+          type: "task.create",
+          status: "succeeded",
+          updatedAt: "2026-06-08T00:00:00.000Z",
+        },
+        "chat:session-1:0:0:1": {
+          type: "task.create",
+          status: "cancelled",
+          updatedAt: "2026-06-08T00:00:01.000Z",
+        },
+      },
+    });
+
+    expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
+      "/tmp/project",
+      "session-1",
+      expect.any(Function)
+    );
+    const patchFn = mocks.patchSessionMeta.mock.calls[0]![2] as (input: SessionMeta) => unknown;
+    expect(patchFn(currentMeta)).toMatchObject({
+      actionStates: {
+        "chat:session-1:0:0:0": currentMeta.actionStates?.["chat:session-1:0:0:0"],
+        "chat:session-1:0:0:1": {
+          type: "task.create",
+          status: "cancelled",
+          updatedAt: "2026-06-08T00:00:01.000Z",
+        },
+      },
+      updatedAt: expect.any(String),
+    });
   });
 
   it("createSession writes probe configOptions and acpSessionId into new meta", async () => {

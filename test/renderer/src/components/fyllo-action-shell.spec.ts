@@ -1,0 +1,243 @@
+import { h } from "vue";
+import { flushPromises, mount, type DOMWrapper, type VueWrapper } from "@vue/test-utils";
+import { describe, expect, it, vi } from "vitest";
+import FylloActionShell from "@renderer/components/shared/markstream/FylloActionShell.vue";
+import { getFylloActionDefinition } from "@renderer/config/fyllo-actions";
+import type {
+  FylloActionHandlerResult,
+  FylloActionParseResult,
+  FylloActionPayload,
+} from "@shared/types/fyllo-action";
+
+const taskCreateDefinition = getFylloActionDefinition("task.create");
+
+function readyResult(overrides: Partial<FylloActionParseResult> = {}): FylloActionParseResult {
+  return {
+    status: "ready",
+    type: "task.create",
+    payload: {
+      title: "补齐错误处理",
+      description: "整理异常分支",
+    },
+    ...overrides,
+  } as FylloActionParseResult;
+}
+
+function mountShell(
+  parseResult: FylloActionParseResult,
+  confirmHandler = vi.fn<() => Promise<FylloActionHandlerResult>>(),
+  extraProps: Partial<InstanceType<typeof FylloActionShell>["$props"]> = {}
+): VueWrapper {
+  return mount(FylloActionShell, {
+    props: {
+      parseResult,
+      definition: parseResult.status === "ready" ? taskCreateDefinition : null,
+      confirmHandler,
+      isDark: false,
+      ...extraProps,
+    },
+    slots: {
+      default: ({ payload }: { payload: FylloActionPayload }) =>
+        h("div", { "data-test": "action-body" }, `typed body: ${payload.title}`),
+    },
+  });
+}
+
+function buttonByText(wrapper: VueWrapper, text: string): DOMWrapper<HTMLButtonElement> {
+  const button = wrapper.findAll("button").find((node) => node.text() === text);
+  if (!button) {
+    throw new Error(`Missing button: ${text}`);
+  }
+  return button as DOMWrapper<HTMLButtonElement>;
+}
+
+function findButtonByText(
+  wrapper: VueWrapper,
+  text: string
+): DOMWrapper<HTMLButtonElement> | undefined {
+  return wrapper.findAll("button").find((node) => node.text() === text) as
+    | DOMWrapper<HTMLButtonElement>
+    | undefined;
+}
+
+describe("FylloActionShell", () => {
+  it("renders fixed confirm and cancel labels with type-specific body content", () => {
+    const wrapper = mountShell(readyResult());
+
+    expect(wrapper.get('[data-test="action-body"]').text()).toContain("补齐错误处理");
+    expect(buttonByText(wrapper, "确认").exists()).toBe(true);
+    expect(buttonByText(wrapper, "取消").exists()).toBe(true);
+  });
+
+  it("disables confirm for invalid actions", () => {
+    const wrapper = mountShell({
+      status: "invalid",
+      type: "task.create",
+      error: {
+        code: "invalid_payload",
+        message: "invalid",
+      },
+    });
+
+    expect((buttonByText(wrapper, "确认").element as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("enters running and succeeded states and prevents duplicate confirm", async () => {
+    let resolveHandler: (result: FylloActionHandlerResult) => void = () => {};
+    const confirmHandler = vi.fn(
+      () =>
+        new Promise<FylloActionHandlerResult>((resolve) => {
+          resolveHandler = resolve;
+        })
+    );
+    const wrapper = mountShell(readyResult(), confirmHandler);
+
+    await buttonByText(wrapper, "确认").trigger("click");
+
+    expect(confirmHandler).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain("执行中");
+    expect((buttonByText(wrapper, "确认").element as HTMLButtonElement).disabled).toBe(true);
+
+    await buttonByText(wrapper, "确认").trigger("click");
+    expect(confirmHandler).toHaveBeenCalledTimes(1);
+
+    resolveHandler({ ok: true });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("已完成");
+    expect(findButtonByText(wrapper, "确认")).toBeUndefined();
+    expect(findButtonByText(wrapper, "取消")).toBeUndefined();
+    expect(confirmHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows retry after a failed handler result", async () => {
+    const confirmHandler = vi
+      .fn<() => Promise<FylloActionHandlerResult>>()
+      .mockResolvedValueOnce({ ok: false, error: "创建失败" })
+      .mockResolvedValueOnce({ ok: true });
+    const wrapper = mountShell(readyResult(), confirmHandler);
+
+    await buttonByText(wrapper, "确认").trigger("click");
+    await flushPromises();
+
+    expect(confirmHandler).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain("失败");
+    expect(wrapper.text()).toContain("创建失败");
+    expect((buttonByText(wrapper, "确认").element as HTMLButtonElement).disabled).toBe(false);
+
+    await buttonByText(wrapper, "确认").trigger("click");
+    await flushPromises();
+
+    expect(confirmHandler).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain("已完成");
+    expect(findButtonByText(wrapper, "确认")).toBeUndefined();
+    expect(findButtonByText(wrapper, "取消")).toBeUndefined();
+  });
+
+  it("cancels locally without calling the handler", async () => {
+    const confirmHandler = vi.fn<() => Promise<FylloActionHandlerResult>>();
+    const wrapper = mountShell(readyResult(), confirmHandler);
+
+    await buttonByText(wrapper, "取消").trigger("click");
+
+    expect(wrapper.text()).toContain("已取消");
+    expect(confirmHandler).not.toHaveBeenCalled();
+    expect(findButtonByText(wrapper, "确认")).toBeUndefined();
+    expect(findButtonByText(wrapper, "取消")).toBeUndefined();
+  });
+
+  it("persists succeeded action state after a successful confirm", async () => {
+    const persistActionState = vi.fn().mockResolvedValue(undefined);
+    const confirmHandler = vi
+      .fn<() => Promise<FylloActionHandlerResult>>()
+      .mockResolvedValue({ ok: true });
+    const wrapper = mountShell(readyResult(), confirmHandler, {
+      actionId: "chat:session-1:0:0:0",
+      persistActionState,
+    });
+
+    await buttonByText(wrapper, "确认").trigger("click");
+    await flushPromises();
+
+    expect(persistActionState).toHaveBeenCalledWith({
+      type: "task.create",
+      status: "succeeded",
+      updatedAt: expect.any(String),
+    });
+  });
+
+  it("persists failed action state after a failed handler result", async () => {
+    const persistActionState = vi.fn().mockResolvedValue(undefined);
+    const wrapper = mountShell(
+      readyResult(),
+      vi.fn<() => Promise<FylloActionHandlerResult>>().mockResolvedValue({
+        ok: false,
+        error: "创建失败",
+      }),
+      {
+        actionId: "chat:session-1:0:0:0",
+        persistActionState,
+      }
+    );
+
+    await buttonByText(wrapper, "确认").trigger("click");
+    await flushPromises();
+
+    expect(persistActionState).toHaveBeenCalledWith({
+      type: "task.create",
+      status: "failed",
+      updatedAt: expect.any(String),
+    });
+  });
+
+  it("persists cancelled action state for ready actions", async () => {
+    const persistActionState = vi.fn().mockResolvedValue(undefined);
+    const wrapper = mountShell(readyResult(), vi.fn<() => Promise<FylloActionHandlerResult>>(), {
+      actionId: "chat:session-1:0:0:0",
+      persistActionState,
+    });
+
+    await buttonByText(wrapper, "取消").trigger("click");
+    await flushPromises();
+
+    expect(persistActionState).toHaveBeenCalledWith({
+      type: "task.create",
+      status: "cancelled",
+      updatedAt: expect.any(String),
+    });
+  });
+
+  it("rehydrates persisted succeeded state and disables confirm", () => {
+    const wrapper = mountShell(readyResult(), vi.fn<() => Promise<FylloActionHandlerResult>>(), {
+      persistedState: {
+        type: "task.create",
+        status: "succeeded",
+        updatedAt: "2026-06-08T00:00:00.000Z",
+      },
+    });
+
+    expect(wrapper.text()).toContain("已完成");
+    expect(findButtonByText(wrapper, "确认")).toBeUndefined();
+    expect(findButtonByText(wrapper, "取消")).toBeUndefined();
+  });
+
+  it("keeps succeeded UI when action state persistence fails", async () => {
+    const wrapper = mountShell(
+      readyResult(),
+      vi.fn<() => Promise<FylloActionHandlerResult>>().mockResolvedValue({ ok: true }),
+      {
+        actionId: "chat:session-1:0:0:0",
+        persistActionState: vi.fn().mockRejectedValue(new Error("meta write failed")),
+      }
+    );
+
+    await buttonByText(wrapper, "确认").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("已完成");
+    expect(wrapper.text()).toContain("状态保存失败");
+    expect(wrapper.text()).toContain("meta write failed");
+    expect(findButtonByText(wrapper, "确认")).toBeUndefined();
+    expect(findButtonByText(wrapper, "取消")).toBeUndefined();
+  });
+});

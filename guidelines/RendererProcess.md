@@ -82,6 +82,11 @@ keywords: [renderer, vue, pinia, routing, ui]
 - 未命中 capability 时，`getPromptCapabilities(agentId)` 必须返回 `{ image: false, audio: false, embeddedContext: false }`，UI 入口按不支持处理。
 - `src/renderer/src/utils/chat-message-parts.ts` 提供 `isUserImagePart` / `isUserFilePart`，只用于 user message 的 AI SDK `FileUIPart` 渲染分派；assistant file part 当前不渲染。
 
+## Chat Markdown Rendering
+
+- `src/renderer/src/components/shared/MarkStream.vue` 是 assistant Markdown 渲染的统一入口；新增 markstream-vue 自定义 HTML 标签时，必须通过当前实例的 `custom-id` 调用 `setCustomComponents(customId, mapping)` 注册 scoped component，并在组件卸载或 `custom-id` 变化时调用 `removeCustomComponents(previousId)` 清理 mapping，避免不同消息实例串用自定义组件。
+- Fyllo action 渲染必须保持展示与执行边界：`src/renderer/src/components/shared/markstream/FylloActionShell.vue` 只负责通用状态展示、状态流转和用户确认/取消交互；不同 action type 的正文展示必须通过 `src/renderer/src/config/fyllo-actions.ts` 绑定专用组件，例如 `src/renderer/src/components/chat/action/TaskCreateAction.vue`。这些展示组件不得 import `window.api`、`src/renderer/src/api/*`、Pinia store 或 task 业务模块；业务 handler 只能由容器节点通过 `src/renderer/src/composables/useFylloActionDispatcher.ts` 挂接。
+
 ## Draft Session Probe
 
 - `useSessionStore.draftProbeByAgent` 维护草稿态 probe 的 renderer 内存镜像；`activeDraftProbe` 只跟随当前 `draftAgentId`，切 agent 时必须先清旧 entry，再 debounce 发起新 `probeEnsure`。

@@ -135,4 +135,47 @@ describe("resolveSystemReminder", () => {
     expect(reminder?.text).toContain("bypasses the MCP workspace runtime");
     expect(reminder?.text).not.toContain("git worktree add");
   });
+
+  it("injects the Fyllo action contract into chat reminders", async () => {
+    const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
+
+    const reminder = await resolveSystemReminder({
+      owner: "chat",
+      projectPath: "/tmp/project",
+      cwd: "/tmp/project",
+      fylloSessionId: "session-1",
+      agentId: "claude-acp",
+    });
+
+    expect(reminder?.text).toContain("## Fyllo Action Tags");
+    expect(reminder?.text).toContain('<fyllo-action type="task.create">');
+    expect(reminder?.text).toContain("task.create");
+    expect(reminder?.text).toContain("title");
+    expect(reminder?.text).toContain("Required non-empty task title.");
+    expect(reminder?.text).toContain("description");
+    expect(reminder?.text).toContain("Optional plain-text task description.");
+    expect(reminder?.text).toContain("The only allowed attribute is `type`.");
+    expect(reminder?.text).toContain("FylloCode controls the UI and fixed confirm/cancel buttons.");
+    expect(reminder?.text).toContain("confirmLabel");
+  });
+
+  it("does not inject Fyllo action contracts into apply or archive reminders", async () => {
+    const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
+
+    for (const owner of ["apply", "archive"] as const) {
+      const reminder = await resolveSystemReminder({
+        owner,
+        projectPath: "/tmp/project",
+        cwd: "/tmp/project",
+        fylloSessionId: "session-1",
+        agentId: "claude-acp",
+        changeId: "change-1",
+        stageIndex: 1,
+        runId: "run-1",
+      });
+
+      expect(reminder?.text).not.toContain("## Fyllo Action Tags");
+      expect(reminder?.text).not.toContain('<fyllo-action type="task.create">');
+    }
+  });
 });

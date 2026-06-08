@@ -9,6 +9,7 @@ export const ChatChannels = {
   saveAttachment: "chat:saveAttachment",
   readAttachmentDataUrl: "chat:readAttachmentDataUrl",
   setConfigOption: "chat:setConfigOption",
+  setActionState: "chat:setActionState",
 } as const;
 
 export const ChatStreamChannels = {

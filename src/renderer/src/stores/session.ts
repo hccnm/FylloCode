@@ -9,6 +9,7 @@ import type {
   Session,
   TokenUsage,
 } from "@shared/types/chat";
+import type { FylloActionState } from "@shared/types/fyllo-action";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 import { chatApi } from "@renderer/api/chat";
 import { useAcpAgentsStore } from "./acp-agents";
@@ -67,6 +68,12 @@ export interface SessionStore {
   setSessionAgent: (agentId: string) => Promise<void>;
   setSessionAvailableCommands: (sessionId: string, commands: AcpAvailableCommand[]) => void;
   setSessionConfigOptions: (sessionId: string, options: AcpSessionConfigOption[]) => void;
+  setSessionActionState: (sessionId: string, actionId: string, state: FylloActionState) => void;
+  persistSessionActionState: (
+    sessionId: string,
+    actionId: string,
+    state: FylloActionState
+  ) => Promise<void>;
   setSessionPlan: (sessionId: string, entries: PlanEntry[]) => void;
   ensureDraftProbe: (agentId: string, projectId: string) => Promise<void>;
   closeDraftProbe: (agentId: string) => Promise<void>;
@@ -225,6 +232,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     session.updatedAt = nextSession.updatedAt;
     session.availableCommands = nextSession.availableCommands;
     session.configOptions = nextSession.configOptions;
+    session.actionStates = nextSession.actionStates;
     return session;
   }
 
@@ -244,6 +252,46 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
 
     session.configOptions = options;
+  }
+
+  function setSessionActionState(
+    sessionId: string,
+    actionId: string,
+    state: FylloActionState
+  ): void {
+    const session = findSession(sessionId);
+    if (!session) {
+      return;
+    }
+
+    session.actionStates = {
+      ...(session.actionStates ?? {}),
+      [actionId]: state,
+    };
+  }
+
+  async function persistSessionActionState(
+    sessionId: string,
+    actionId: string,
+    state: FylloActionState
+  ): Promise<void> {
+    const session = findSession(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    setSessionActionState(sessionId, actionId, state);
+    const result = await chatApi.setActionState({
+      projectId: session.projectId,
+      sessionId,
+      actionId,
+      state,
+    });
+    if (!result.ok) {
+      throw new Error(result.error.message || result.error.code);
+    }
+
+    session.actionStates = result.data.actionStates;
   }
 
   // plan 为运行时态：全量替换，不持久化。SerializedSession / normalizeSession /
@@ -583,6 +631,8 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     setSessionAgent,
     setSessionAvailableCommands,
     setSessionConfigOptions,
+    setSessionActionState,
+    persistSessionActionState,
     setSessionPlan,
     ensureDraftProbe,
     closeDraftProbe,

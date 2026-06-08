@@ -3,6 +3,7 @@ import type { UIMessage } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
 import type { AcpAvailableCommand } from "@shared/types/chat";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
+import type { FylloActionState } from "@shared/types/fyllo-action";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { loadProject } from "@main/infra/storage/project-store";
 import {
@@ -41,6 +42,7 @@ export function toSession(meta: SessionMeta, projectId: string): Session {
     messages: [],
     availableCommands: meta.available_commands,
     configOptions: meta.configOptions,
+    actionStates: meta.actionStates,
   };
 }
 
@@ -106,6 +108,30 @@ export async function updateSession(input: {
     throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${input.id}`);
   }
   return toSession(nextMeta, input.projectId);
+}
+
+export async function setSessionActionState(input: {
+  projectId: string;
+  sessionId: string;
+  actionId: string;
+  state: FylloActionState;
+}): Promise<{ actionStates: Record<string, FylloActionState> }> {
+  const projectPath = await resolveProjectPath(input.projectId);
+  const nextMeta = await patchSessionMeta(projectPath, input.sessionId, (currentMeta) => ({
+    actionStates: {
+      ...(currentMeta.actionStates ?? {}),
+      [input.actionId]: input.state,
+    },
+    updatedAt: new Date().toISOString(),
+  }));
+
+  if (!nextMeta) {
+    throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${input.sessionId}`);
+  }
+
+  return {
+    actionStates: nextMeta.actionStates ?? {},
+  };
 }
 
 export async function removeSession(input: { id: string; projectId: string }): Promise<void> {

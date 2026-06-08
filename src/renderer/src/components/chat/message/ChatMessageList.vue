@@ -5,12 +5,14 @@ import { ref, onMounted, watch } from "vue";
 import AssistantMessage from "./AssistantMessage.vue";
 import UserMessage from "./UserMessage.vue";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
+import { useSessionStore } from "@renderer/stores/session";
 
-const { messages, status } = defineProps<{
+const props = defineProps<{
   messages: UIMessage<MessageMeta>[];
   status: ChatStatus;
   type: "chat" | "side";
 }>();
+const sessionStore = useSessionStore();
 
 /*
  * 切换到历史消息很多的 session 时（coding agent 单 turn 常有几十次工具调用 + 大段
@@ -39,6 +41,23 @@ onMounted(() => {
     isDark.value = val;
   });
 });
+
+function getMessageIndex(message: UIMessage<MessageMeta>): number {
+  return props.messages.findIndex((item) => item.id === message.id);
+}
+
+function getMessageSessionId(message: UIMessage<MessageMeta>): string | null {
+  return message.metadata?.sessionId ?? null;
+}
+
+function getMessageActionStates(message: UIMessage<MessageMeta>) {
+  const sessionId = getMessageSessionId(message);
+  if (!sessionId) {
+    return undefined;
+  }
+
+  return sessionStore.sessions.find((session) => session.id === sessionId)?.actionStates;
+}
 </script>
 
 <template>
@@ -47,8 +66,8 @@ onMounted(() => {
       should-auto-scroll
       should-scroll-to-bottom
       :auto-scroll="false"
-      :messages="messages"
-      :status="status"
+      :messages="props.messages"
+      :status="props.status"
       :user="{
         side: 'right',
         variant: 'naked',
@@ -59,7 +78,15 @@ onMounted(() => {
     >
       <template #content="{ message }">
         <UserMessage v-if="message.role === 'user'" :message="message" />
-        <AssistantMessage v-else :message="message" :is-dark="isDark" />
+        <AssistantMessage
+          v-else
+          :message="message"
+          :is-dark="isDark"
+          :enable-actions="props.type === 'chat'"
+          :session-id="getMessageSessionId(message)"
+          :message-index="getMessageIndex(message)"
+          :action-states="getMessageActionStates(message)"
+        />
       </template>
     </UChatMessages>
   </div>

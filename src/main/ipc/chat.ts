@@ -15,6 +15,7 @@ import {
   readAttachmentDataUrlInputSchema,
   removeSessionInputSchema,
   saveAttachmentInputSchema,
+  setActionStateInputSchema,
   setConfigOptionInputSchema,
   streamCancelInputSchema,
   streamMessageInputSchema,
@@ -33,6 +34,7 @@ import {
   persistSessionMessage,
   removeSession,
   resolveProjectPath,
+  setSessionActionState,
   updateSession,
 } from "@main/services/chat/chat-service";
 import { setConfigOption } from "@main/services/chat/config-option-service";
@@ -178,6 +180,13 @@ export function registerChatHandlers(): void {
     wrapHandler(async () => {
       const form = validate(setConfigOptionInputSchema, input);
       return setConfigOption(form);
+    })
+  );
+
+  ipcMain.handle(ChatChannels.setActionState, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(setActionStateInputSchema, input);
+      return setSessionActionState(form);
     })
   );
 

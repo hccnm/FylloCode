@@ -1,8 +1,10 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { sessionsDir } from "@main/infra/storage/project-paths";
+import { getFylloActionContract } from "@shared/constants/fyllo-action-contracts";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, MessageMeta, TokenUsage } from "@shared/types/chat";
+import type { FylloActionState, FylloActionStateStatus } from "@shared/types/fyllo-action";
 import type { UIMessage } from "ai";
 
 export interface SessionMeta {
@@ -14,6 +16,7 @@ export interface SessionMeta {
   tokenUsage: TokenUsage;
   available_commands?: AcpAvailableCommand[];
   configOptions?: AcpSessionConfigOption[];
+  actionStates?: Record<string, FylloActionState>;
   createdAt: string;
   updatedAt: string;
 }
@@ -217,12 +220,55 @@ function normalizeTokenUsage(tokenUsage: Partial<TokenUsage> | null | undefined)
   };
 }
 
+function isActionStateStatus(value: unknown): value is FylloActionStateStatus {
+  return value === "succeeded" || value === "failed" || value === "cancelled";
+}
+
+function normalizeActionStates(value: unknown): Record<string, FylloActionState> | undefined {
+  if (!isSessionMetaRecord(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value).flatMap(([actionId, rawState]) => {
+    if (actionId.length === 0 || !isSessionMetaRecord(rawState)) {
+      return [];
+    }
+
+    const type = rawState.type;
+    const status = rawState.status;
+    const updatedAt = rawState.updatedAt;
+    const contract = typeof type === "string" ? getFylloActionContract(type) : undefined;
+    if (
+      typeof type !== "string" ||
+      !contract ||
+      !isActionStateStatus(status) ||
+      typeof updatedAt !== "string"
+    ) {
+      return [];
+    }
+
+    return [
+      [
+        actionId,
+        {
+          type: contract.type,
+          status,
+          updatedAt,
+        },
+      ] as const,
+    ];
+  });
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 function normalizeSessionMetaRecord(raw: SessionMetaRecord): SessionMetaRecord {
   return {
     ...raw,
     tokenUsage: normalizeTokenUsage(raw.tokenUsage as Partial<TokenUsage> | undefined),
     available_commands: Array.isArray(raw.available_commands) ? raw.available_commands : undefined,
     configOptions: Array.isArray(raw.configOptions) ? raw.configOptions : undefined,
+    actionStates: normalizeActionStates(raw.actionStates),
   };
 }
 

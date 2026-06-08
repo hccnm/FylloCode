@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
     readAttachmentDataUrl: vi.fn(),
     removeSessionAttachments: vi.fn(),
     saveAttachment: vi.fn(),
+    setSessionActionState: vi.fn(),
     persistSessionMessage: vi.fn(),
     resolveProjectPath: vi.fn(),
     loadSessionMeta: vi.fn(),
@@ -67,6 +68,7 @@ vi.mock("@main/services/chat/chat-service", () => ({
   persistSessionMessage: mocks.persistSessionMessage,
   removeSession: vi.fn(),
   resolveProjectPath: mocks.resolveProjectPath,
+  setSessionActionState: mocks.setSessionActionState,
   updateSession: vi.fn(),
 }));
 
@@ -194,6 +196,15 @@ describe("registerChatHandlers", () => {
       acpSessionId: "acp-probe",
       configOptions: [],
     });
+    mocks.setSessionActionState.mockResolvedValue({
+      actionStates: {
+        "chat:session-1:0:0:0": {
+          type: "task.create",
+          status: "succeeded",
+          updatedAt: "2026-06-08T00:00:00.000Z",
+        },
+      },
+    });
     mocks.takeProbeFor.mockReturnValue(null);
     mocks.assemblerFlush.mockReturnValue(null);
     const { registerChatHandlers } = await import("@main/ipc/chat");
@@ -277,6 +288,88 @@ describe("registerChatHandlers", () => {
       error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
     });
     expect(mocks.readAttachmentDataUrl).not.toHaveBeenCalled();
+  });
+
+  it("writes action state through the chat action state channel", async () => {
+    const state = {
+      type: "task.create" as const,
+      status: "succeeded" as const,
+      updatedAt: "2026-06-08T00:00:00.000Z",
+    };
+
+    const result = await handler(ChatChannels.setActionState)(
+      {},
+      {
+        projectId: "project-1",
+        sessionId: "session-1",
+        actionId: "chat:session-1:0:0:0",
+        state,
+      }
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        actionStates: {
+          "chat:session-1:0:0:0": state,
+        },
+      },
+    });
+    expect(mocks.setSessionActionState).toHaveBeenCalledWith({
+      projectId: "project-1",
+      sessionId: "session-1",
+      actionId: "chat:session-1:0:0:0",
+      state,
+    });
+  });
+
+  it("rejects invalid action state payloads before calling the service", async () => {
+    const result = await handler(ChatChannels.setActionState)(
+      {},
+      {
+        projectId: "project-1",
+        sessionId: "session-1",
+        actionId: "chat:session-1:0:0:0",
+        state: {
+          type: "task.create",
+          status: "running",
+          updatedAt: "2026-06-08T00:00:00.000Z",
+        },
+      }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
+    });
+    expect(mocks.setSessionActionState).not.toHaveBeenCalled();
+  });
+
+  it("returns an error when action state write targets a missing session", async () => {
+    mocks.setSessionActionState.mockRejectedValueOnce(
+      Object.assign(new Error("Session not found: session-missing"), {
+        code: IpcErrorCodes.CHAT_SESSION_NOT_FOUND,
+      })
+    );
+
+    const result = await handler(ChatChannels.setActionState)(
+      {},
+      {
+        projectId: "project-1",
+        sessionId: "session-missing",
+        actionId: "chat:session-missing:0:0:0",
+        state: {
+          type: "task.create",
+          status: "cancelled",
+          updatedAt: "2026-06-08T00:00:00.000Z",
+        },
+      }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.CHAT_SESSION_NOT_FOUND }),
+    });
   });
 
   it("persists assembled assistant message before sending done", async () => {
